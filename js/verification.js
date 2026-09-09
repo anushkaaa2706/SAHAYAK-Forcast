@@ -503,7 +503,7 @@
         center: [item.lat, item.lng],
         zoom: 12,
         zoomControl: false,
-        layers: [L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        layers: [L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
           attribution: '&copy; OSM &copy; CARTO',
           subdomains: 'abcd', maxZoom: 19
         })]

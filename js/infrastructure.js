@@ -271,7 +271,7 @@
     function initMap(zone, infrastructure, villages) {
         if (typeof L === 'undefined') return;
 
-        const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OSM &copy; CARTO',
             subdomains: 'abcd',
             maxZoom: 19
