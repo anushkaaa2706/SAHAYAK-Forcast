@@ -1,6 +1,6 @@
 // js/risk-analysis.js — Risk Analysis Page Logic
 
-(function() {
+(function () {
     'use strict';
 
     const state = {
@@ -144,45 +144,137 @@
     }
 
     // ============ RISK OVERVIEW ============
+    // ============ RISK OVERVIEW ============
+
     function renderRiskOverview(d, level) {
-        const changeClass = d.riskChangeDir === 'up' ? 'up' : 'stable';
-        const changeSymbol = d.riskChangeDir === 'up' ? '↑' : d.riskChangeDir === 'down' ? '↓' : '→';
+
+        const changeClass =
+            d.riskChangeDir === 'up'
+                ? 'up'
+                : 'stable';
+
+        const changeSymbol =
+            d.riskChangeDir === 'up'
+                ? '↑'
+                : d.riskChangeDir === 'down'
+                    ? '↓'
+                    : '→';
 
         return `
-            <section class="risk-overview" aria-label="Current risk overview">
-                <div class="risk-gauge-wrap">
-                    ${renderGaugeSVG(d.risk, level)}
-                    <div class="gauge-labels">
-                        <span class="gauge-label safe">SAFE</span>
-                        <span class="gauge-label watch">WATCH</span>
-                        <span class="gauge-label alert">ALERT</span>
-                        <span class="gauge-label warning">WARNING</span>
-                    </div>
+        <section class="risk-overview" aria-label="Current risk overview">
+
+            <div class="risk-gauge-wrap">
+
+                ${renderGaugeSVG(d.risk, level)}
+
+                <div class="gauge-labels">
+                    <span class="gauge-label safe">SAFE</span>
+                    <span class="gauge-label watch">WATCH</span>
+                    <span class="gauge-label alert">ALERT</span>
+                    <span class="gauge-label warning">WARNING</span>
                 </div>
-                <div class="risk-stats">
-                    <div class="risk-stat level-${level}">
-                        <div class="risk-stat-label">Landslide Probability</div>
-                        <div class="risk-stat-value">${d.probability.toFixed(1)}%</div>
-                        <div class="risk-stat-sub">Model estimate</div>
+
+            </div>
+
+
+            <div class="risk-stats">
+
+                <!-- MODEL RISK SCORE -->
+                <div class="risk-stat level-${level}">
+
+                    <div class="risk-stat-label">
+                        Model Risk Score
                     </div>
-                    <div class="risk-stat level-${level}">
-                        <div class="risk-stat-label">Risk Level</div>
-                        <div class="risk-stat-value" style="color: var(--${level === 'safe' ? 'safe' : level === 'watch' ? 'watch' : level === 'alert' ? 'alert' : 'warning'});">${d.level}</div>
-                        <div class="risk-stat-sub">Current classification</div>
+
+                    <div class="risk-stat-value">
+                        ${Number(d.risk).toFixed(0)} / 100
                     </div>
-                    <div class="risk-stat level-${level}">
-                        <div class="risk-stat-label">Risk Change</div>
-                        <div class="risk-stat-value">${changeSymbol} ${d.riskChange}</div>
-                        <div class="risk-stat-sub ${changeClass}">points · last 12h</div>
+
+                    <div class="risk-stat-sub">
+                        Live SAHAYAK ML model
                     </div>
-                    <div class="risk-stat">
-                        <div class="risk-stat-label">Last Updated</div>
-                        <div class="risk-stat-value" style="font-size: var(--fs-lg);">5 min</div>
-                        <div class="risk-stat-sub">ago · DEMO</div>
-                    </div>
+
                 </div>
-            </section>
-        `;
+
+
+                <!-- RISK LEVEL -->
+                <div class="risk-stat level-${level}">
+
+                    <div class="risk-stat-label">
+                        Risk Level
+                    </div>
+
+                    <div
+                        class="risk-stat-value"
+                        style="
+                            color: var(
+                                --${level === 'safe'
+                ? 'safe'
+                : level === 'watch'
+                    ? 'watch'
+                    : level === 'alert'
+                        ? 'alert'
+                        : 'warning'
+            }
+                            );
+                        "
+                    >
+                        ${d.level}
+                    </div>
+
+                    <div class="risk-stat-sub">
+                        Model classification
+                    </div>
+
+                </div>
+
+
+                <!-- RISK CHANGE -->
+                <div class="risk-stat level-${level}">
+
+                    <div class="risk-stat-label">
+                        Risk Change
+                    </div>
+
+                    <div class="risk-stat-value">
+                        ${changeSymbol}
+                        ${d.riskChange ?? '—'}
+                    </div>
+
+                    <div class="risk-stat-sub ${changeClass}">
+                        points · last 12h
+                    </div>
+
+                </div>
+
+
+                <!-- MODEL STATUS -->
+                <div class="risk-stat">
+
+                    <div class="risk-stat-label">
+                        Model Status
+                    </div>
+
+                    <div
+                        class="risk-stat-value"
+                        style="font-size: var(--fs-lg);"
+                    >
+                        ${d.modelConnected ? 'LIVE' : '—'}
+                    </div>
+
+                    <div class="risk-stat-sub">
+                        ${d.modelConnected
+                ? `SAHAYAK ML · ${d.modelRiskLevel || d.level}`
+                : 'model unavailable'
+            }
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+    `;
     }
 
     // ============ GAUGE SVG ============
