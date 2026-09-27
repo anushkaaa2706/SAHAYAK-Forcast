@@ -776,7 +776,7 @@ const Services = {
       modelUrl,
       null,
       {
-        timeout: 20000
+        timeout: 80000
       }
     );
 
