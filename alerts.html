@@ -84,10 +84,10 @@
         <select class="lang-selector" aria-label="Language">
           <option>EN</option><option>HI</option><option>BN</option><option>AS</option>
         </select>
-        <button class="header-user" aria-label="User profile">
-          <div class="user-avatar">AU</div>
-          <span class="header-user-name">Authority</span>
-        </button>
+        <button class="header-user">
+    <div class="user-avatar" id="headerUserAvatar">U</div>
+    <span class="header-user-name" id="headerUserName">User</span>
+</button>
       </div>
     </header>
 
@@ -102,11 +102,7 @@
         <span class="status-bar-label">Active Monitoring Regions</span>
         <span class="status-bar-value">8 States</span>
       </div>
-      <div class="status-bar-divider"></div>
-      <div class="status-bar-item">
-        <span class="status-bar-label">Session</span>
-        <span class="status-bar-value" style="color: var(--watch);">Prototype Session</span>
-      </div>
+      
     </div>
 
     <!-- MAIN CONTENT -->
@@ -119,9 +115,7 @@
             <span class="page-title-badge">AUTHORITY REVIEW REQUIRED</span>
           </h2>
           <p class="page-subtitle">Monitor, review and manage landslide risk alerts</p>
-          <div class="page-demo-strip">
-            <span class="demo-tag">SYNTHETIC WORKFLOW</span>
-          </div>
+          
         </div>
         <a href="alert-create.html" class="btn btn-primary">+ Generate Warning</a>
       </div>
@@ -207,13 +201,7 @@
       <div class="alerts-grid" id="alertsGrid"></div>
 
       <!-- Disclaimer -->
-      <div style="margin-top: var(--space-6); padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); text-align: center;">
-        <div style="font-size: var(--fs-xs); color: var(--text-600); line-height: 1.6; max-width: 720px; margin: 0 auto;">
-          <strong>Disclaimer:</strong> This prototype demonstrates a decision-support workflow using synthetic data. All alerts, risk scores, and warnings are illustrative. Warnings must be reviewed by authorized personnel before any real-world action.
-        </div>
-        <div style="display: flex; justify-content: center; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
-        </div>
-      </div>
+      
     </main>
   </div>
 

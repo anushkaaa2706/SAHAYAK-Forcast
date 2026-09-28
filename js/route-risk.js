@@ -18,6 +18,7 @@
 
     // ============ INIT ============
     function init() {
+        setPageUser();
         renderSidebar();
         renderLocationInputs();
         initMap();

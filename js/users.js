@@ -69,16 +69,29 @@
   
     // ============ LOAD USERS ============
     async function loadUsers() {
-      const loading = document.getElementById('usersLoading');
-      if (loading) loading.style.display = 'block';
-      state.users = await Services.getUsers(state.filters);
-      renderUsersTable();
-      if (loading) loading.style.display = 'none';
-    }
-  
+  const loading = document.getElementById('usersLoading');
+
+  if (loading) loading.style.display = 'block';
+
+  try {
+    state.users = await Services.getUsers(state.filters);
+    renderUsersTable();
+  } catch (error) {
+    console.error('Failed to load users:', error);
+
+    state.users = DEMO_DATA.users;
+    renderUsersTable();
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
     // ============ SUMMARY ============
     function renderSummary() {
-      const all = SahayakState.get('users') || DEMO_DATA.users;
+      const storedUsers = SahayakState.get('users');
+
+const all = Array.isArray(storedUsers) && storedUsers.length > 0
+    ? storedUsers
+    : DEMO_DATA.users;
       const active = all.filter(u => u.status === 'active').length;
       const fieldOfficers = all.filter(u => u.role === 'field_officer').length;
       const admins = all.filter(u => u.role === 'super_admin' || u.role === 'disaster_authority').length;
@@ -112,7 +125,11 @@
   
       if (district) {
         // Populate districts
-        const allUsers = SahayakState.get('users') || DEMO_DATA.users;
+        const storedUsers = SahayakState.get('users');
+
+const allUsers = Array.isArray(storedUsers) && storedUsers.length > 0
+  ? storedUsers
+  : DEMO_DATA.users;
         const districts = [...new Set(allUsers.map(u => u.district).filter(d => d && d !== 'All'))].sort();
         district.innerHTML = '<option value="all">All Districts</option>' +
           districts.map(d => `<option value="${d}">${d}</option>`).join('');
@@ -226,7 +243,11 @@
       const container = document.getElementById('rolesGrid');
       if (!container) return;
   
-      const allUsers = SahayakState.get('users') || DEMO_DATA.users;
+     const storedUsers = SahayakState.get('users');
+
+const allUsers = Array.isArray(storedUsers) && storedUsers.length > 0
+  ? storedUsers
+  : DEMO_DATA.users;
       const roles = DEMO_DATA.roles.map(r => ({
         ...r,
         userCount: allUsers.filter(u => u.role === r.id).length
@@ -256,7 +277,11 @@
       if (!container) return;
   
       const activities = await Services.getUserActivity();
-      const allUsers = SahayakState.get('users') || DEMO_DATA.users;
+      const storedUsers = SahayakState.get('users');
+
+const allUsers = Array.isArray(storedUsers) && storedUsers.length > 0
+  ? storedUsers
+  : DEMO_DATA.users;
   
       container.innerHTML = activities.slice(0, 6).map(a => {
         const user = allUsers.find(u => u.id === a.userId);
@@ -281,7 +306,13 @@
   
     // ============ USER DETAIL ============
     function openDetail(userId) {
-      const user = (SahayakState.get('users') || DEMO_DATA.users).find(u => u.id === userId);
+      const storedUsers = SahayakState.get('users');
+
+const allUsers = Array.isArray(storedUsers) && storedUsers.length > 0
+  ? storedUsers
+  : DEMO_DATA.users;
+
+const user = allUsers.find(u => u.id === userId);
       if (!user) return;
       state.selectedUser = user;
   
@@ -487,7 +518,13 @@
   
     // ============ EDIT USER ============
     function openEditModal(userId) {
-      const user = (SahayakState.get('users') || DEMO_DATA.users).find(u => u.id === userId);
+     const storedUsers = SahayakState.get('users');
+
+const allUsers = Array.isArray(storedUsers) && storedUsers.length > 0
+  ? storedUsers
+  : DEMO_DATA.users;
+
+const user = allUsers.find(u => u.id === userId);
       if (!user) return;
   
       const modal = document.getElementById('addUserModal');
@@ -555,7 +592,13 @@
   
     // ============ TOGGLE STATUS ============
     async function toggleUserStatus(userId) {
-      const user = (SahayakState.get('users') || DEMO_DATA.users).find(u => u.id === userId);
+      const storedUsers = SahayakState.get('users');
+
+const allUsers = Array.isArray(storedUsers) && storedUsers.length > 0
+  ? storedUsers
+  : DEMO_DATA.users;
+
+const user = allUsers.find(u => u.id === userId);
       if (!user) return;
   
       if (user.status === 'active') {

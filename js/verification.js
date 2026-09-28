@@ -73,16 +73,30 @@
   
     // ============ LOAD ITEMS ============
     async function loadItems() {
-      const loading = document.getElementById('verificationLoading');
-      if (loading) loading.style.display = 'block';
-      state.items = await Services.getVerificationData(state.filters);
-      renderItems();
-      if (loading) loading.style.display = 'none';
-    }
+  const loading = document.getElementById('verificationLoading');
+
+  if (loading) loading.style.display = 'block';
+
+  try {
+    state.items = await Services.getVerificationData(state.filters);
+    renderItems();
+  } catch (error) {
+    console.error('Failed to load verification data:', error);
+
+    state.items = DEMO_DATA.verificationItems;
+    renderItems();
+  } finally {
+    if (loading) loading.style.display = 'none';
+  }
+}
   
     // ============ SUMMARY ============
     function renderSummary() {
-      const all = SahayakState.get('verificationItems') || DEMO_DATA.verificationItems;
+     const storedItems = SahayakState.get('verificationItems');
+
+const all = Array.isArray(storedItems) && storedItems.length > 0
+    ? storedItems
+    : DEMO_DATA.verificationItems;
       document.getElementById('summaryPending').textContent = all.filter(v => v.status === 'PENDING').length;
       document.getElementById('summaryVerified').textContent = all.filter(v => v.status === 'VERIFIED').length;
       document.getElementById('summaryRejected').textContent = all.filter(v => v.status === 'REJECTED').length;
@@ -91,7 +105,11 @@
   
     // ============ TABS ============
     function renderTabs() {
-      const all = SahayakState.get('verificationItems') || DEMO_DATA.verificationItems;
+      const storedItems = SahayakState.get('verificationItems');
+
+const all = Array.isArray(storedItems) && storedItems.length > 0
+  ? storedItems
+  : DEMO_DATA.verificationItems;
       const counts = {
         pending: all.filter(v => v.status === 'PENDING').length,
         verified: all.filter(v => v.status === 'VERIFIED').length,
@@ -260,7 +278,13 @@
   
     // ============ DETAIL PANEL ============
     function openDetail(itemId) {
-      const item = (SahayakState.get('verificationItems') || DEMO_DATA.verificationItems).find(v => v.id === itemId);
+      const storedItems = SahayakState.get('verificationItems');
+
+const all = Array.isArray(storedItems) && storedItems.length > 0
+  ? storedItems
+  : DEMO_DATA.verificationItems;
+
+const item = all.find(v => v.id === itemId);
       if (!item) return;
       state.selectedItem = item;
   
@@ -571,7 +595,11 @@
       if (state.sideMarkers) state.sideMap.removeLayer(state.sideMarkers);
       state.sideMarkers = L.layerGroup().addTo(state.sideMap);
   
-      const items = SahayakState.get('verificationItems') || DEMO_DATA.verificationItems;
+      const storedItems = SahayakState.get('verificationItems');
+
+const items = Array.isArray(storedItems) && storedItems.length > 0
+  ? storedItems
+  : DEMO_DATA.verificationItems;
       items.forEach(v => {
         const colors = {
           'PENDING': '#EAB308',
@@ -604,7 +632,11 @@
       const feed = document.getElementById('recentFeed');
       if (!feed) return;
   
-      const items = (SahayakState.get('verificationItems') || DEMO_DATA.verificationItems)
+      const storedItems = SahayakState.get('verificationItems');
+
+const items = (Array.isArray(storedItems) && storedItems.length > 0
+  ? storedItems
+  : DEMO_DATA.verificationItems)
         .filter(v => v.status !== 'PENDING')
         .slice(0, 5);
   
