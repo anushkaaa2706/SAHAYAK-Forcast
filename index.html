@@ -18,27 +18,7 @@
     <header class="navbar" id="navbar" role="banner">
         <div class="nav-container">
             <a href="index.html" class="nav-brand" aria-label="SAHAYAK Home">
-                <div class="brand-logo" aria-hidden="true">
-                        <defs>
-                            <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#19B8C7"/>
-                                <stop offset="100%" stop-color="#0F9D8A"/>
-                            </linearGradient>
-                        </defs>
-                        <!-- Shield -->
-                        <path d="M20 3 L34 8 V20 C34 28 28 34 20 37 C12 34 6 28 6 20 V8 Z" 
-                              fill="none" stroke="url(#logoGrad)" stroke-width="1.5"/>
-                        <!-- Mountain -->
-                        <path d="M10 26 L16 16 L20 22 L24 14 L30 26 Z" 
-                              fill="url(#logoGrad)" opacity="0.85"/>
-                        <!-- Location pin -->
-                        <circle cx="24" cy="14" r="2" fill="#19B8C7"/>
-                        <!-- AI signal arcs -->
-                        <path d="M27 11 Q30 9 32 11" fill="none" stroke="#19B8C7" stroke-width="1" stroke-linecap="round"/>
-                        <path d="M29 9 Q31 7 33 9" fill="none" stroke="#19B8C7" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
-                    </svg>
-                </div>
-                <img src="./logo.png" class="my-png">
+                <img src="./logo.png" class="my-png" alt="SAHAYAK Logo" style="height: 40px; width: auto;">
                 <div class="brand-text">
                     <span class="brand-name">SAHAYAK</span>
                     <span class="brand-sub">NER Landslide Intelligence</span>
@@ -67,16 +47,16 @@
             <div class="hero-bg-grid" aria-hidden="true"></div>
             <div class="hero-container">
                 <div class="hero-content">
+                    <!-- Bada SAHAYAK aur chota niche wala text -->
+                    <div class="big-brand-name">SAHAYAK</div>
+                    <div class="small-brand-tagline">Smart AI Hazard Assessment & Actionable Knowledge</div>
+                    
                     <h1 class="hero-title">
-                        Predict Early.<br>
-                        Warn Faster.<br>
+                        Predict Early,
+                        Warn Faster,
                         <span class="title-accent">Save Lives.</span>
                     </h1>
-                    <p class="hero-subtitle">
-                        SAHAYAK transforms environmental data into explainable landslide risk intelligence, 
-                        helping authorities monitor hazards, prioritize vulnerable areas, issue early warnings 
-                        and coordinate field response across Northeast India.
-                    </p>
+                    
                     <div class="hero-cta">
                         <a href="dashboard.html" class="btn btn-primary btn-lg">
                             Explore Command Center
@@ -96,151 +76,11 @@
                     </div>
                 </div>
 
-                <!-- HERO VISUAL: GIS Intelligence Panel -->
-                <div class="hero-visual" aria-hidden="true">
-                    <div class="gis-panel">
-                        <div class="gis-header">
-                            <div class="gis-header-left">
-                                <span class="gis-live-dot"></span>
-                                <span class="gis-label">NER RISK MONITOR</span>
-                            </div>
-                            <span class="gis-time" id="gisTime">--:--:--</span>
-                        </div>
-                        <div class="gis-map">
-                            <svg class="gis-map-svg" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg">
-                                <defs>
-                                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e2d44" stroke-width="0.5"/>
-                                    </pattern>
-                                    <radialGradient id="riskGlow" cx="50%" cy="50%" r="50%">
-                                        <stop offset="0%" stop-color="#F97316" stop-opacity="0.5"/>
-                                        <stop offset="100%" stop-color="#F97316" stop-opacity="0"/>
-                                    </radialGradient>
-                                    <radialGradient id="safeGlow" cx="50%" cy="50%" r="50%">
-                                        <stop offset="0%" stop-color="#16A34A" stop-opacity="0.3"/>
-                                        <stop offset="100%" stop-color="#16A34A" stop-opacity="0"/>
-                                    </radialGradient>
-                                </defs>
-                                <!-- Grid background -->
-                                <rect width="400" height="320" fill="url(#grid)"/>
-                                <!-- Topographic contours -->
-                                <g class="contours" stroke="#1e3a5f" stroke-width="0.8" fill="none" opacity="0.6">
-                                    <path d="M 20 180 Q 80 140 140 160 T 260 140 T 380 160"/>
-                                    <path d="M 20 200 Q 90 160 150 180 T 270 160 T 380 180"/>
-                                    <path d="M 20 220 Q 100 180 160 200 T 280 180 T 380 200"/>
-                                    <path d="M 40 100 Q 100 80 180 100 T 320 90"/>
-                                    <path d="M 40 120 Q 110 100 190 120 T 330 110"/>
-                                    <path d="M 60 250 Q 140 230 220 250 T 360 240"/>
-                                </g>
-                                <!-- Terrain polygons (stylized NE India) -->
-                                <g class="terrain" opacity="0.35">
-                                    <path d="M 80 140 L 120 110 L 160 120 L 180 150 L 150 180 L 100 170 Z" 
-                                          fill="#0F9D8A" opacity="0.3"/>
-                                    <path d="M 180 150 L 220 130 L 260 150 L 240 190 L 200 180 Z" 
-                                          fill="#19B8C7" opacity="0.25"/>
-                                    <path d="M 240 190 L 280 170 L 320 200 L 300 230 L 260 220 Z" 
-                                          fill="#0F9D8A" opacity="0.3"/>
-                                    <path d="M 100 200 L 140 210 L 160 240 L 120 250 L 90 230 Z" 
-                                          fill="#19B8C7" opacity="0.2"/>
-                                </g>
-                                <!-- Risk zone glow -->
-                                <circle cx="140" cy="140" r="50" fill="url(#riskGlow)"/>
-                                <circle cx="280" cy="190" r="35" fill="url(#safeGlow)"/>
-                                <!-- Location markers -->
-                                <g class="markers">
-                                    <!-- High risk marker -->
-                                    <g class="marker marker-alert">
-                                        <circle cx="140" cy="140" r="12" class="marker-pulse"/>
-                                        <circle cx="140" cy="140" r="5" fill="#F97316"/>
-                                        <circle cx="140" cy="140" r="2" fill="#fff"/>
-                                    </g>
-                                    <!-- Watch marker -->
-                                    <g class="marker marker-watch">
-                                        <circle cx="220" cy="170" r="10" class="marker-pulse"/>
-                                        <circle cx="220" cy="170" r="4" fill="#EAB308"/>
-                                    </g>
-                                    <!-- Safe markers -->
-                                    <g class="marker marker-safe">
-                                        <circle cx="280" cy="190" r="4" fill="#16A34A"/>
-                                    </g>
-                                    <g class="marker marker-safe">
-                                        <circle cx="100" cy="220" r="4" fill="#16A34A"/>
-                                    </g>
-                                    <g class="marker marker-safe">
-                                        <circle cx="320" cy="130" r="4" fill="#16A34A"/>
-                                    </g>
-                                    <!-- Data points -->
-                                    <g class="data-points" fill="#19B8C7" opacity="0.7">
-                                        <circle cx="160" cy="120" r="1.5"/>
-                                        <circle cx="200" cy="150" r="1.5"/>
-                                        <circle cx="240" cy="160" r="1.5"/>
-                                        <circle cx="180" cy="180" r="1.5"/>
-                                        <circle cx="260" cy="200" r="1.5"/>
-                                        <circle cx="120" cy="160" r="1.5"/>
-                                        <circle cx="300" cy="170" r="1.5"/>
-                                    </g>
-                                </g>
-                                <!-- Labels -->
-                                <g class="labels" font-family="Inter" font-size="9" fill="#8a9bb5">
-                                    <text x="148" y="138">TAWANG</text>
-                                    <text x="228" y="168">SHILLONG</text>
-                                    <text x="288" y="188">AIZAWL</text>
-                                </g>
-                            </svg>
-                            <!-- Demo watermark -->
-                            <div class="gis-demo-badge">ILLUSTRATIVE DATA</div>
-                        </div>
-                        <!-- Risk panel -->
-                        <div class="gis-risk-panel">
-                            <div class="risk-panel-header">
-                                <div>
-                                    <div class="risk-panel-label">LANDSLIDE RISK</div>
-                                    <div class="risk-panel-location">Tawang</div>
-                                </div>
-                                <div class="risk-score-wrap">
-                                    <div class="risk-score" id="riskScore" data-target="84">0</div>
-                                    <div class="risk-score-max">/ 100</div>
-                                </div>
-                            </div>
-                            <div class="risk-status status-alert">
-                                <span class="status-indicator"></span>
-                                <span>WARNING</span>
-                            </div>
-                            <div class="risk-params">
-                                <div class="risk-param">
-                                    <span class="param-label">Rainfall</span>
-                                    <span class="param-value param-high">High</span>
-                                </div>
-                                <div class="risk-param">
-                                    <span class="param-label">Soil Moisture</span>
-                                    <span class="param-value param-high">High</span>
-                                </div>
-                                <div class="risk-param">
-                                    <span class="param-label">Slope</span>
-                                    <span class="param-value param-steep">Steep</span>
-                                </div>
-                                <div class="risk-param">
-                                    <span class="param-label">Satellite</span>
-                                    <span class="param-value param-anomaly">Anomaly</span>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Bottom stats -->
-                        <div class="gis-stats">
-                            <div class="gis-stat">
-                                <div class="stat-label">ZONES</div>
-                                <div class="stat-value">127</div>
-                            </div>
-                            <div class="gis-stat">
-                                <div class="stat-label">ALERTS</div>
-                                <div class="stat-value stat-alert">14</div>
-                            </div>
-                            <div class="gis-stat">
-                                <div class="stat-label">SENSORS</div>
-                                <div class="stat-value">48</div>
-                            </div>
-                        </div>
-                    </div>
+                <!-- HERO VISUAL: Image Placeholder (Map hata diya gaya hai) -->
+                <div class="hero-image-placeholder" aria-hidden="true">
+                    <!-- Bhai, yahan apni image ka tag laga dena, jaise: -->
+                    <!-- <img src="your-image.png" alt="SAHAYAK Platform"> -->
+                    <span><img src="./frontimage.png"></span>
                 </div>
             </div>
         </section>
