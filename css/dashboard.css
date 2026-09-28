@@ -12,6 +12,10 @@
     min-height: 100vh;
     background: #F1F5F9;
 }
+.my-img{
+    height: auto;
+    width: 50px;
+}
 
 /* ============ SIDEBAR ============ */
 .sidebar {
