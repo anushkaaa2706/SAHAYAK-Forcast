@@ -743,7 +743,6 @@ async getAllRiskZones() {
       reject: 'Prediction not verified',
       reinspect: 'Re-inspection requested'
     };
-
     SahayakState.addNotification({
       type: result === 'verify' ? 'success' : 'warning',
       icon: result === 'verify' ? '✓' : '⚠',

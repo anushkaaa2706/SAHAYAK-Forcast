@@ -43,14 +43,17 @@
     };
   
     // ============ INITIALIZATION ============
-    function init() {
-      renderSidebar();
-      loadSettings();
-      setupNavigation();
-      renderAllSections();
-      setupEventListeners();
-      applySettings();
-    }
+   function init() {
+
+  setPageUser();
+
+  renderSidebar();
+  loadSettings();
+  setupNavigation();
+  renderAllSections();
+  setupEventListeners();
+  applySettings();
+}
   
     // ============ SIDEBAR ============
     function renderSidebar() {
@@ -184,50 +187,97 @@
     }
   
     // ============ PROFILE ============
-    function renderProfile() {
-      const el = document.getElementById('settingsProfile');
-      if (!el) return;
-      el.innerHTML = `
-        <div class="settings-card">
-          <div class="settings-card-body">
-            <div class="profile-header">
-              <div class="profile-avatar">AU</div>
-              <div class="profile-info">
-                <div class="profile-name">Demo Authority</div>
-                <div class="profile-role">Disaster Authority</div>
-                <div class="profile-status"><span class="profile-status-dot"></span> Active</div>
-              </div>
-            </div>
-            <div class="profile-details">
-              <div class="profile-detail-item">
-                <div class="profile-detail-label">Name</div>
-                <div class="profile-detail-value">Demo Authority</div>
-              </div>
-              <div class="profile-detail-item">
-                <div class="profile-detail-label">Role</div>
-                <div class="profile-detail-value">Disaster Authority</div>
-              </div>
-              <div class="profile-detail-item">
-                <div class="profile-detail-label">Assigned Region</div>
-                <div class="profile-detail-value">Northeast India</div>
-              </div>
-              <div class="profile-detail-item">
-                <div class="profile-detail-label">Session</div>
-                <div class="profile-detail-value">Prototype Session</div>
-              </div>
-            </div>
-            <div style="display: flex; gap: var(--space-2); margin-top: var(--space-4);">
-              <button class="btn btn-outline" onclick="window.SahayakSettings.showDemoModal('Edit Profile')">Edit Profile</button>
-              <button class="btn btn-outline" onclick="window.SahayakSettings.showDemoModal('Change Password')">Change Password</button>
+   function renderProfile() {
+
+  const el = document.getElementById('settingsProfile');
+
+  if (!el) return;
+  
+
+  const user = AUTH.getUser();
+
+  if (!user) return;
+
+  const displayName = user.name || 'User';
+
+  let displayRole = 'User';
+
+  if (user.role === 'citizen') {
+    displayRole = 'Citizen';
+  } else if (user.role === 'field_officer') {
+    displayRole = 'Field Officer';
+  } else if (user.role === 'district_officer') {
+    displayRole = 'District Officer';
+  } else if (user.role === 'disaster_authority') {
+    displayRole = 'Disaster Authority';
+  } else if (user.role === 'super_admin') {
+    displayRole = 'Administrator';
+  } else {
+    displayRole = user.role || 'User';
+  }
+
+  const initials = displayName
+    .split(' ')
+    .map(word => word[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
+  const assignedRegion =
+    user.region ||
+    user.district ||
+    'Not assigned';
+
+  el.innerHTML = `
+    <div class="settings-card">
+      <div class="settings-card-body">
+
+        <div class="profile-header">
+
+          <div class="profile-avatar">${initials}</div>
+
+          <div class="profile-info">
+            <div class="profile-name">${displayName}</div>
+            <div class="profile-role">${displayRole}</div>
+            <div class="profile-status">
+              <span class="profile-status-dot"></span>
+              Active
             </div>
           </div>
+
         </div>
-        <div class="settings-warning">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <span>Prototype session — no real authentication is implemented. User data is synthetic.</span>
+
+        <div class="profile-details">
+
+          <div class="profile-detail-item">
+            <div class="profile-detail-label">Name</div>
+            <div class="profile-detail-value">${displayName}</div>
+          </div>
+
+          <div class="profile-detail-item">
+            <div class="profile-detail-label">Role</div>
+            <div class="profile-detail-value">${displayRole}</div>
+          </div>
+
+          <div class="profile-detail-item">
+            <div class="profile-detail-label">Assigned Region</div>
+            <div class="profile-detail-value">${assignedRegion}</div>
+          </div>
+
         </div>
-      `;
-    }
+
+        ${AUTH.getUser()?.role !== 'citizen' ? `
+    <div style="display: flex; gap: var(--space-2); margin-top: var(--space-4);">
+        <button class="btn btn-outline" onclick="window.SahayakSettings.editProfile()">Edit Profile</button>
+        <button class="btn btn-outline" onclick="window.SahayakSettings.showDemoModal('Change Password')">Change Password</button>
+    </div>
+` : ''}
+
+      </div>
+    </div>
+
+  `;
+}
   
     // ============ APPEARANCE ============
     function renderAppearance() {
@@ -577,12 +627,22 @@
           <div class="settings-card-body">
             <div class="profile-details">
               <div class="profile-detail-item">
-                <div class="profile-detail-label">Session</div>
-                <div class="profile-detail-value">Prototype Session</div>
-              </div>
-              <div class="profile-detail-item">
                 <div class="profile-detail-label">Role</div>
-                <div class="profile-detail-value">Disaster Authority</div>
+               <div class="profile-detail-value">
+  ${(() => {
+    const user = AUTH.getUser();
+
+    if (!user) return 'User';
+
+    if (user.role === 'citizen') return 'Citizen';
+    if (user.role === 'field_officer') return 'Field Officer';
+    if (user.role === 'district_officer') return 'District Officer';
+    if (user.role === 'disaster_authority') return 'Disaster Authority';
+    if (user.role === 'super_admin') return 'Administrator';
+
+    return user.role || 'User';
+  })()}
+</div>
               </div>
               <div class="profile-detail-item">
                 <div class="profile-detail-label">Session Status</div>
@@ -705,25 +765,30 @@
   
     // ============ TOAST ============
     function showToast(message) {
-      const existing = document.querySelector('.settings-toast');
-      if (existing) existing.remove();
-  
-      const toast = document.createElement('div');
-      toast.className = 'settings-toast';
-      toast.innerHTML = `
+    const existing = document.querySelector('.settings-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'settings-toast';
+
+    toast.innerHTML = `
         <div class="settings-toast-icon">✓</div>
         <div>
-          <div class="settings-toast-text">${message}</div>
-          <div class="settings-toast-demo">DEMO</div>
+            <div class="settings-toast-text">${message}</div>
         </div>
-      `;
-      document.body.appendChild(toast);
-  
-      setTimeout(() => {
+    `;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
         toast.classList.add('toast-exit');
-        setTimeout(() => toast.remove(), 300);
-      }, 3000);
-    }
+
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+
+    }, 3000);
+}
   
     // ============ EVENT LISTENERS ============
     function setupEventListeners() {

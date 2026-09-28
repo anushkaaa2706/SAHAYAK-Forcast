@@ -34,7 +34,6 @@
     document.querySelectorAll('.tab-content').forEach(content => {
       content.classList.toggle('active', content.dataset.content === tabFromHash);
     });
-
     setupTabs();
     setupLocationSelector();
     await loadLocation();

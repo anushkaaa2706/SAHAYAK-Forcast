@@ -13,6 +13,7 @@
     };
   
     async function init() {
+      setPageUser();
       renderSidebar();
       await loadItems();
       renderSummary();
@@ -627,25 +628,115 @@
   
     // ============ ACTIONS ============
     async function verify(id) {
-      await Services.verifyPrediction(id);
-      showToast('success', '✓', 'Prediction verified successfully', `${id} — field evidence confirmed`, 'DEMO');
-      await refreshAll();
-      if (state.selectedItem?.id === id) closeDetail();
-    }
+
+  const user = AUTH.getUser();
+
+  const allowedRoles = [
+    'super_admin',
+    'disaster_authority',
+    'district_officer',
+    'field_officer'
+  ];
+
+  if (!user || !allowedRoles.includes(user.role)) {
+    showToast(
+      'warning',
+      '!',
+      'Access denied',
+      'You do not have permission to verify reports.',
+      ''
+    );
+    return;
+  }
+
+  await Services.verifyPrediction(id);
+
+  showToast(
+    'success',
+    '✓',
+    'Prediction verified successfully',
+    `${id} — field evidence confirmed`,
+    'DEMO'
+  );
+
+  await refreshAll();
+
+  if (state.selectedItem?.id === id) closeDetail();
+}
   
     async function reject(id) {
-      await Services.rejectPrediction(id);
-      showToast('warning', '✗', 'Prediction rejected', `${id} — field observation differs from AI`, 'DEMO');
-      await refreshAll();
-      if (state.selectedItem?.id === id) closeDetail();
-    }
+
+  const user = AUTH.getUser();
+
+  const allowedRoles = [
+    'super_admin',
+    'disaster_authority',
+    'district_officer',
+    'field_officer'
+  ];
+
+  if (!user || !allowedRoles.includes(user.role)) {
+    showToast(
+      'warning',
+      '!',
+      'Access denied',
+      'You do not have permission to reject reports.',
+      ''
+    );
+    return;
+  }
+
+  await Services.rejectPrediction(id);
+
+  showToast(
+    'warning',
+    '✗',
+    'Prediction rejected',
+    `${id} — field observation differs from AI`,
+    'DEMO'
+  );
+
+  await refreshAll();
+
+  if (state.selectedItem?.id === id) closeDetail();
+}
   
     async function requestInspection(id) {
-      await Services.requestInspection(id);
-      showToast('info', '📍', 'Inspection requested', `${id} — additional field verification required`, 'DEMO');
-      await refreshAll();
-      if (state.selectedItem?.id === id) closeDetail();
-    }
+
+  const user = AUTH.getUser();
+
+  const allowedRoles = [
+    'super_admin',
+    'disaster_authority',
+    'district_officer',
+    'field_officer'
+  ];
+
+  if (!user || !allowedRoles.includes(user.role)) {
+    showToast(
+      'warning',
+      '!',
+      'Access denied',
+      'You do not have permission to request an inspection.',
+      ''
+    );
+    return;
+  }
+
+  await Services.requestInspection(id);
+
+  showToast(
+    'info',
+    '📍',
+    'Inspection requested',
+    `${id} — additional field verification required`,
+    'DEMO'
+  );
+
+  await refreshAll();
+
+  if (state.selectedItem?.id === id) closeDetail();
+}
   
     async function refreshAll() {
       await loadItems();

@@ -13,17 +13,57 @@
     };
   
     async function init() {
-      renderSidebar();
-      await loadReports();
-      renderSummary();
-      renderTabs();
-      setupFilters();
-      setupMap();
-      renderActivityFeed();
-      renderSyncQueue();
-      setupEventListeners();
-      loadNotifications();
+setPageUser();
+  const user = AUTH.getUser();
+
+  if (user) {
+
+    const displayName = user.name || 'User';
+
+    let displayRole = 'User';
+
+    if (user.role === 'citizen') {
+      displayRole = 'Citizen';
+    } else if (user.role === 'field_officer') {
+      displayRole = 'Field Officer';
+    } else if (user.role === 'district_officer') {
+      displayRole = 'District Officer';
+    } else if (user.role === 'disaster_authority') {
+      displayRole = 'Disaster Authority';
+    } else if (user.role === 'super_admin') {
+      displayRole = 'Administrator';
+    } else {
+      displayRole = user.role || 'User';
     }
+
+    const initials = displayName
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+
+    document.getElementById('headerUserAvatar').textContent = initials;
+    document.getElementById('headerUserName').textContent = displayRole;
+
+    document.getElementById('sidebarUserAvatar').textContent = initials;
+    document.getElementById('sidebarUserName').textContent = displayName;
+    document.getElementById('sidebarUserRole').textContent = displayRole;
+
+    document.getElementById('statusUserRole').textContent = displayRole;
+  }
+
+  renderSidebar();
+  await loadReports();
+  renderSummary();
+  renderTabs();
+  setupFilters();
+  setupMap();
+  renderActivityFeed();
+  renderSyncQueue();
+  setupEventListeners();
+  loadNotifications();
+}
   
     function renderSidebar() {
       const nav = document.getElementById('sidebarNav');

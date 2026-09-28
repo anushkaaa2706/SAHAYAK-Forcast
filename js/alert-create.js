@@ -193,37 +193,56 @@
     }
   
     async function generateWarning() {
-      if (!state.formData.location) {
-        alert('Please select a location');
-        return;
-      }
-      if (!state.formData.reason) {
-        alert('Please provide a reason');
-        return;
-      }
-  
-      const zone = DEMO_DATA.riskZones.find(z => z.location === state.formData.location);
-      await Services.createAlert({
-        severity: state.formData.severity,
-        type: 'Landslide Risk Warning',
-        location: state.formData.location,
-        state: zone?.state || '',
-        lat: zone?.lat || 0,
-        lng: zone?.lng || 0,
-        risk: state.formData.riskScore,
-        message: state.formData.reason,
-        population: zone?.population || 0,
-        roads: zone?.roads || 0,
-        schools: zone?.schools || 0,
-        hospitals: zone?.hospitals || 0,
-        bridges: zone?.bridges || 0,
-        villages: 0,
-        expires: '2 hours',
-        factors: zone?.factors || []
-      });
-  
-      showSuccess();
-    }
+
+  // Only authorized official roles can generate warnings
+  const user = AUTH.getUser();
+
+  const allowedRoles = [
+    'super_admin',
+    'disaster_authority',
+    'district_officer'
+  ];
+
+  if (!user || !allowedRoles.includes(user.role)) {
+    alert('Access denied. Only authorized authorities can generate official warnings.');
+    return;
+  }
+
+  if (!state.formData.location) {
+    alert('Please select a location');
+    return;
+  }
+
+  if (!state.formData.reason) {
+    alert('Please provide a reason');
+    return;
+  }
+
+  const zone = DEMO_DATA.riskZones.find(
+    z => z.location === state.formData.location
+  );
+
+  await Services.createAlert({
+    severity: state.formData.severity,
+    type: 'Landslide Risk Warning',
+    location: state.formData.location,
+    state: zone?.state || '',
+    lat: zone?.lat || 0,
+    lng: zone?.lng || 0,
+    risk: state.formData.riskScore,
+    message: state.formData.reason,
+    population: zone?.population || 0,
+    roads: zone?.roads || 0,
+    schools: zone?.schools || 0,
+    hospitals: zone?.hospitals || 0,
+    bridges: zone?.bridges || 0,
+    villages: 0,
+    expires: '2 hours',
+    factors: zone?.factors || []
+  });
+
+  showSuccess();
+}
   
     async function sendAlert() {
       await generateWarning();

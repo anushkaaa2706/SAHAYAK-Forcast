@@ -24,7 +24,111 @@ const ROUTES = {
     citizen: 'citizen.html',
     fieldOfficer: 'field-officer.html'
 };
+// Authentication
+const AUTH = {
+    getUser() {
+        const user = localStorage.getItem('sahayakUser');
 
+        if (!user) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(user);
+        } catch (error) {
+            localStorage.removeItem('sahayakUser');
+            return null;
+        }
+    },
+
+    isLoggedIn() {
+        return this.getUser() !== null;
+    },
+
+    logout() {
+        localStorage.removeItem('sahayakUser');
+        window.location.href = 'login.html';
+    }
+};
+function setPageUser() {
+
+    const user = AUTH.getUser();
+
+    if (!user) {
+        return;
+    }
+
+    const displayName = user.name || 'User';
+
+    let displayRole = 'User';
+
+    if (user.role === 'citizen') {
+        displayRole = 'Citizen';
+    } else if (user.role === 'field_officer') {
+        displayRole = 'Field Officer';
+    } else if (user.role === 'district_officer') {
+        displayRole = 'District Officer';
+    } else if (user.role === 'disaster_authority') {
+        displayRole = 'Disaster Authority';
+    } else if (user.role === 'super_admin') {
+        displayRole = 'Administrator';
+    } else {
+        displayRole = user.role || 'User';
+    }
+
+    const initials = displayName
+        .split(' ')
+        .map(word => word[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
+
+    const headerAvatar = document.getElementById('headerUserAvatar');
+    const headerName = document.getElementById('headerUserName');
+
+    const sidebarAvatar = document.getElementById('sidebarUserAvatar');
+    const sidebarName = document.getElementById('sidebarUserName');
+    const sidebarRole = document.getElementById('sidebarUserRole');
+
+    const statusRole = document.getElementById('statusUserRole');
+
+    if (headerAvatar) {
+        headerAvatar.textContent = initials;
+    }
+
+    if (headerName) {
+        headerName.textContent = displayRole;
+    }
+
+    if (sidebarAvatar) {
+        sidebarAvatar.textContent = initials;
+    }
+
+    if (sidebarName) {
+        sidebarName.textContent = displayName;
+    }
+
+    if (sidebarRole) {
+        sidebarRole.textContent = displayRole;
+    }
+
+    if (statusRole) {
+        statusRole.textContent = displayRole;
+    }
+}
+
+// Protect pages that require login
+const currentPage = window.location.pathname.split('/').pop();
+
+const publicPages = [
+    '',
+    'index.html',
+    'login.html'
+];
+
+if (!publicPages.includes(currentPage) && !AUTH.isLoggedIn()) {
+    window.location.href = 'login.html';
+}
 // Shared utilities
 const Utils = {
     /**

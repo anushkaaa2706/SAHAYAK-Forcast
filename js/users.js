@@ -11,6 +11,7 @@
   
     // ============ INITIALIZATION ============
     async function init() {
+      setPageUser();
       renderSidebar();
       await loadUsers();
       renderSummary();
@@ -397,6 +398,10 @@
           <input type="email" class="modal-form-input" id="newUserEmail" placeholder="user@sahayak.demo">
         </div>
         <div class="modal-form-group">
+        <label class="modal-form-label">Password <span class="required">*</span></label>
+        <input type="password" class="modal-form-input" id="newUserPassword" placeholder="Set a temporary password">
+      </div>
+        <div class="modal-form-group">
           <label class="modal-form-label">Phone</label>
           <input type="tel" class="modal-form-input" id="newUserPhone" placeholder="+91 98XXX XXXXX">
         </div>
@@ -448,26 +453,37 @@
     }
   
     async function createUser() {
-      const name = document.getElementById('newUserName')?.value.trim();
-      const email = document.getElementById('newUserEmail')?.value.trim();
-      const phone = document.getElementById('newUserPhone')?.value.trim();
-      const role = document.getElementById('newUserRole')?.value;
-      const region = document.getElementById('newUserRegion')?.value;
-      const district = document.getElementById('newUserDistrict')?.value.trim() || 'All';
-      const status = document.getElementById('newUserStatus')?.value;
-  
-      if (!name || !email || !role) {
+    const name = document.getElementById('newUserName')?.value.trim();
+    const email = document.getElementById('newUserEmail')?.value.trim();
+    const phone = document.getElementById('newUserPhone')?.value.trim();
+    const password = document.getElementById('newUserPassword')?.value;
+    const role = document.getElementById('newUserRole')?.value;
+    const region = document.getElementById('newUserRegion')?.value;
+    const district = document.getElementById('newUserDistrict')?.value.trim() || 'All';
+    const status = document.getElementById('newUserStatus')?.value;
+
+    if (!name || !email || !password || !role) {
         showToast('warning', '⚠', 'Please fill required fields');
         return;
-      }
-  
-      await Services.addUser({ name, email, phone, role, region, district, status });
-      closeAddModal();
-      showToast('success', '✓', 'User created successfully');
-      await loadUsers();
-      renderSummary();
-      renderRoles();
     }
+
+    await Services.addUser({
+        name,
+        email,
+        password,
+        phone,
+        role,
+        region,
+        district,
+        status
+    });
+
+    closeAddModal();
+    showToast('success', '✓', 'User created successfully');
+    await loadUsers();
+    renderSummary();
+    renderRoles();
+}
   
     // ============ EDIT USER ============
     function openEditModal(userId) {

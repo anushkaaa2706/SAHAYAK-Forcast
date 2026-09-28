@@ -33,9 +33,12 @@
       <div class="sidebar-footer">
         <div class="sidebar-status"><span class="status-dot"></span><span>System Operational</span></div>
         <div class="sidebar-user">
-          <div class="user-avatar">AU</div>
-          <div class="user-info"><div class="user-name">Authority</div><div class="user-role">Administrator</div></div>
-        </div>
+    <div class="user-avatar" id="sidebarUserAvatar">U</div>
+    <div class="user-info">
+        <div class="user-name" id="sidebarUserName">User</div>
+        <div class="user-role" id="sidebarUserRole">User</div>
+    </div>
+</div>
       </div>
     </aside>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -68,15 +71,15 @@
           <option>EN</option><option>HI</option><option>BN</option><option>AS</option>
         </select>
         <button class="header-user">
-          <div class="user-avatar">AU</div>
-          <span class="header-user-name">Authority</span>
-        </button>
+    <div class="user-avatar" id="headerUserAvatar">U</div>
+    <span class="header-user-name" id="headerUserName">User</span>
+</button>
       </div>
     </header>
 
     <!-- STATUS BAR -->
     <div class="status-bar">
-      <div class="status-bar-item"><span class="status-bar-label">Role</span><span class="status-bar-value">Super Admin</span></div>
+      <div class="status-bar-item"><span class="status-bar-label">Role</span>/span></div><span class="status-bar-value" id="statusUserRole">User</span>
       <div class="status-bar-divider"></div>
       <div class="status-bar-divider"></div>
       <div class="status-bar-item"><span class="status-bar-label">Environment</span><span class="status-bar-value">DEMO</span></div>

@@ -11,6 +11,7 @@
     };
   
     async function init() {
+      setPageUser();
       renderSidebar();
       await loadAlerts();
       renderSummary();

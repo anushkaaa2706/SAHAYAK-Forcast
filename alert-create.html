@@ -33,10 +33,13 @@
       <nav class="sidebar-nav" id="sidebarNav"></nav>
       <div class="sidebar-footer">
         <div class="sidebar-status"><span class="status-dot"></span><span>System Operational</span></div>
-        <div class="sidebar-user">
-          <div class="user-avatar">AU</div>
-          <div class="user-info"><div class="user-name">Authority</div><div class="user-role">Administrator</div></div>
-        </div>
+       <div class="sidebar-user">
+    <div class="user-avatar" id="sidebarUserAvatar">U</div>
+    <div class="user-info">
+        <div class="user-name" id="sidebarUserName">User</div>
+        <div class="user-role" id="sidebarUserRole">User</div>
+    </div>
+</div>
       </div>
     </aside>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -63,12 +66,15 @@
             <div class="notification-list" id="notificationList"></div>
           </div>
         </div>
-        <button class="header-user"><div class="user-avatar">AU</div><span class="header-user-name">Authority</span></button>
+       <button class="header-user">
+    <div class="user-avatar" id="headerUserAvatar">U</div>
+    <span class="header-user-name" id="headerUserName">User</span>
+</button>
       </div>
     </header>
 
     <div class="status-bar">
-      <div class="status-bar-item"><span class="status-bar-label">Role</span><span class="status-bar-value">Authority</span></div>
+      <div class="status-bar-item"><span class="status-bar-label">Role</span><span class="status-bar-value" id="statusUserRole">User</span></div>
       <div class="status-bar-divider"></div>
       <div class="status-bar-item"><span class="status-bar-label">Session</span>
     </div>

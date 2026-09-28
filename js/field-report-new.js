@@ -13,19 +13,82 @@
         aiPredictionMatch: '',
         photos: []
       },
-      officer: { name: 'Rahul Singh', district: 'Tawang', role: 'Field Officer' },
+     officer: {
+      name: '',
+      district: 'Tawang',
+      role: ''
+    },
       isOffline: false,
       notifications: []
     };
   
     function init() {
-      renderSidebar();
-      setupForm();
-      setupPhotoUpload();
-      setupEventListeners();
-      loadNotifications();
-      updateTimestamp();
+
+  const user = AUTH.getUser();
+
+  if (user) {
+    state.officer.name = user.name || 'Citizen User';
+
+    if (user.role === 'citizen') {
+      state.officer.role = 'Citizen';
+    } else if (user.role === 'field_officer') {
+      state.officer.role = 'Field Officer';
+    } else if (user.role === 'district_officer') {
+      state.officer.role = 'District Officer';
+    } else if (user.role === 'disaster_authority') {
+      state.officer.role = 'Disaster Authority';
+    } else {
+      state.officer.role = user.role || 'User';
     }
+    const displayName = user.name || 'User';
+
+let displayRole = 'User';
+
+if (user.role === 'citizen') {
+    displayRole = 'Citizen';
+} else if (user.role === 'field_officer') {
+    displayRole = 'Field Officer';
+} else if (user.role === 'district_officer') {
+    displayRole = 'District Officer';
+} else if (user.role === 'disaster_authority') {
+    displayRole = 'Disaster Authority';
+} else if (user.role === 'super_admin') {
+    displayRole = 'Administrator';
+} else {
+    displayRole = user.role || 'User';
+}
+
+const initials = displayName
+    .split(' ')
+    .map(word => word[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
+document.getElementById('headerUserAvatar').textContent = initials;
+document.getElementById('headerUserName').textContent = displayRole;
+
+document.getElementById('sidebarUserAvatar').textContent = initials;
+document.getElementById('sidebarUserName').textContent = displayName;
+document.getElementById('sidebarUserRole').textContent = displayRole;
+
+document.getElementById('statusUserRole').textContent = displayRole;
+
+document.getElementById('reporterName').textContent = displayName;
+document.getElementById('reporterRole').textContent = displayRole;
+
+if (user.district) {
+    document.getElementById('reporterDistrict').textContent = user.district;
+}
+  }
+
+  renderSidebar();
+  setupForm();
+  setupPhotoUpload();
+  setupEventListeners();
+  loadNotifications();
+  updateTimestamp();
+}
   
     function renderSidebar() {
       const nav = document.getElementById('sidebarNav');

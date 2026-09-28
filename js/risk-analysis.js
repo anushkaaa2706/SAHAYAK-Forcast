@@ -11,6 +11,8 @@
 
     // ============ INIT ============
     async function init() {
+        setPageUser();
+
         renderSidebar();
         renderLocationSelector();
         await loadLocation(state.currentLocation);

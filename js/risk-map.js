@@ -66,6 +66,7 @@
   
     // ============ INITIALIZATION ============
     async function init() {
+      setPageUser();
       renderSidebar();
       initializeMap();
       await loadAllLayers();

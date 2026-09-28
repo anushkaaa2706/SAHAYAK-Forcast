@@ -30,7 +30,13 @@
       <nav class="sidebar-nav" id="sidebarNav"></nav>
       <div class="sidebar-footer">
         <div class="sidebar-status"><span class="status-dot"></span><span>System Operational</span></div>
-        <div class="sidebar-user"><div class="user-avatar">FO</div><div class="user-info"><div class="user-name">Field Officer</div><div class="user-role">Reporter</div></div></div>
+       <div class="sidebar-user">
+  <div class="user-avatar" id="sidebarUserAvatar">U</div>
+  <div class="user-info">
+    <div class="user-name" id="sidebarUserName">User</div>
+    <div class="user-role" id="sidebarUserRole">User</div>
+  </div>
+</div>
       </div>
     </aside>
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -54,12 +60,18 @@
             <div class="notification-list" id="notificationList"></div>
           </div>
         </div>
-        <button class="header-user"><div class="user-avatar">FO</div><span class="header-user-name">Field Officer</span></button>
+       <button class="header-user">
+    <div class="user-avatar" id="headerUserAvatar">U</div>
+    <span class="header-user-name" id="headerUserName">User</span>
+</button>
       </div>
     </header>
 
     <div class="status-bar">
-      <div class="status-bar-item"><span class="status-bar-label">Role</span><span class="status-bar-value">Field Officer</span></div>
+      <div class="status-bar-item">
+  <span class="status-bar-label">Role</span>
+  <span class="status-bar-value" id="statusUserRole">User</span>
+</div>
       <div class="status-bar-divider"></div>
       <div class="status-bar-item"><span class="status-bar-label">Session</span><span class="status-bar-value" style="color: var(--watch);">Prototype Session</span></div>
     </div>
@@ -177,9 +189,18 @@
             Field Officer Details
           </div>
           <div class="detail-info-grid">
-            <div class="detail-info-item"><div class="detail-info-label">Officer</div><div class="detail-info-value">Rahul Singh</div></div>
-            <div class="detail-info-item"><div class="detail-info-label">Assigned District</div><div class="detail-info-value">Tawang</div></div>
-            <div class="detail-info-item"><div class="detail-info-label">Role</div><div class="detail-info-value">Field Officer</div></div>
+            <div class="detail-info-item">
+  <div class="detail-info-label">Name</div>
+  <div class="detail-info-value" id="reporterName">User</div>
+</div>
+           <div class="detail-info-item">
+  <div class="detail-info-label">District</div>
+  <div class="detail-info-value" id="reporterDistrict">Not assigned</div>
+</div>
+            <div class="detail-info-item">
+  <div class="detail-info-label">Role</div>
+  <div class="detail-info-value" id="reporterRole">User</div>
+</div>
             <div class="detail-info-item"><div class="detail-info-label">Report Time</div><div class="detail-info-value" id="reportTimestamp">—</div></div>
           </div>
         </div>
