@@ -13,6 +13,10 @@
     border-bottom: 1px solid transparent;
     transition: all 0.2s ease;
 }
+.my-png{
+    height: auto;
+    width: 50px;
+}
 
 .navbar.scrolled {
     background: rgba(255, 255, 255, 0.98);
