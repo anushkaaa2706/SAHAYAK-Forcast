@@ -22,7 +22,6 @@ const DEMO_DATA = {
     demoLocations: [
         { name: 'Tawang', state: 'Arunachal Pradesh', lat: 27.47, lng: 91.86 },
         { name: 'Itanagar', state: 'Arunachal Pradesh', lat: 27.10, lng: 93.62 },
-        { name: 'West Siang', state: 'Arunachal Pradesh', lat: 28.17, lng: 94.80 },   
         { name: 'Gangtok', state: 'Sikkim', lat: 27.33, lng: 88.62 },
         { name: 'Shillong', state: 'Meghalaya', lat: 25.57, lng: 91.88 },
         { name: 'Aizawl', state: 'Mizoram', lat: 23.73, lng: 92.72 },

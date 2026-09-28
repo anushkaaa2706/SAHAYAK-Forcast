@@ -1,13 +1,19 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="SAHAYAK Environmental Intelligence — Rainfall, terrain, satellite and historical monitoring">
+  <meta name="description"
+    content="SAHAYAK Environmental Intelligence — Rainfall, terrain, satellite and historical monitoring">
   <title>Environmental Intelligence — SAHAYAK</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/landing.css">
@@ -15,293 +21,1031 @@
   <link rel="stylesheet" href="css/monitoring.css">
   <link rel="stylesheet" href="css/responsive.css">
 </head>
-<body class="monitoring-page">
-  <div class="app-shell">
-    <!-- SIDEBAR -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">
-        <div class="brand-logo">
-          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-            <defs><linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#19B8C7"/><stop offset="100%" stop-color="#0F9D8A"/></linearGradient></defs>
-            <path d="M20 3 L34 8 V20 C34 28 28 34 20 37 C12 34 6 28 6 20 V8 Z" fill="none" stroke="url(#logoGrad)" stroke-width="1.5"/>
-            <path d="M10 26 L16 16 L20 22 L24 14 L30 26 Z" fill="url(#logoGrad)" opacity="0.85"/>
-            <circle cx="24" cy="14" r="2" fill="#19B8C7"/>
-          </svg>
-        </div>
-        <div class="brand-text"><span class="brand-name">SAHAYAK</span><span class="brand-sub">NER Landslide Intelligence</span></div>
-      </div>
-      <nav class="sidebar-nav" id="sidebarNav"></nav>
-      <div class="sidebar-footer">
-        <div class="sidebar-status"><span class="status-dot"></span><span>System Operational</span></div>
-        <div class="sidebar-user">
-    <div class="user-avatar" id="sidebarUserAvatar">U</div>
-    <div class="user-info">
-        <div class="user-name" id="sidebarUserName">User</div>
-        <div class="user-role" id="sidebarUserRole">User</div>
-    </div>
-</div>
-      </div>
-    </aside>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- TOP HEADER -->
-    <header class="top-header">
-      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      <div class="header-title-wrap">
-        <h1 class="header-title">ENVIRONMENTAL INTELLIGENCE</h1>
-        <div class="header-subtitle">Rainfall, terrain, satellite and historical landslide monitoring</div>
-      </div>
-      <div class="header-actions">
-        <div class="header-system-status"><span class="status-dot"></span><span>Operational</span></div>
-        <div style="position: relative;">
-          <button class="icon-btn" id="notificationBtn" aria-label="Notifications">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span class="notification-badge" id="notificationBadge" style="display:none;">0</span>
-          </button>
-          <div class="notification-panel" id="notificationPanel">
-            <div class="notification-panel-header">
-              <div class="notification-panel-title">Notifications</div>
-              <span class="notification-mark-read" onclick="window.SahayakMonitoring.markAllNotificationsRead()">Mark all read</span>
-            </div>
-            <div class="notification-list" id="notificationList"></div>
-          </div>
+<body class="monitoring-page">
+
+  <!-- =========================================================
+       DEBUG CONSOLE
+       ========================================================= -->
+
+  <script>
+    console.clear();
+
+    console.log("==============================================");
+    console.log("🚀 SAHAYAK MONITORING PAGE STARTED");
+    console.log("==============================================");
+
+    console.log("📄 monitoring.html loaded");
+    console.log("🌐 Current URL:", window.location.href);
+    console.log("🕒 Page load time:", new Date().toISOString());
+    console.log("==============================================");
+
+    // Catch JavaScript errors
+    window.addEventListener("error", function (event) {
+      console.error("❌ JAVASCRIPT ERROR");
+      console.error("Message:", event.message);
+      console.error("File:", event.filename);
+      console.error("Line:", event.lineno);
+      console.error("Column:", event.colno);
+      console.error("==============================================");
+    });
+
+    // Catch Promise errors
+    window.addEventListener("unhandledrejection", function (event) {
+      console.error("❌ UNHANDLED PROMISE ERROR");
+      console.error(event.reason);
+      console.error("==============================================");
+    });
+
+    /*
+      IMPORTANT:
+      This intercepts every fetch() request made by the page.
+
+      Therefore, when services.js calls:
+      fetch("https://api.open-meteo.com/...")
+
+      you will see it here.
+    */
+
+    const originalFetch = window.fetch;
+
+    window.fetch = async function (...args) {
+
+      const url = args[0];
+
+      console.log("");
+      console.log("==============================================");
+      console.log("🌐 API REQUEST STARTED");
+      console.log("==============================================");
+      console.log("📍 URL:", url);
+      console.log("📍 Method:", args[1]?.method || "GET");
+      console.log("🕒 Time:", new Date().toISOString());
+
+      try {
+
+        const response = await originalFetch.apply(this, args);
+
+        console.log("📥 API RESPONSE RECEIVED");
+        console.log("📍 URL:", url);
+        console.log("📊 Status:", response.status);
+        console.log("📊 Status Text:", response.statusText);
+        console.log("✅ OK:", response.ok);
+
+        if (response.ok) {
+          console.log("🟢 API REQUEST SUCCESS");
+        } else {
+          console.error("🔴 API REQUEST FAILED");
+        }
+
+        console.log("==============================================");
+
+        return response;
+
+      } catch (error) {
+
+        console.error("❌ API REQUEST ERROR");
+        console.error("📍 URL:", url);
+        console.error("💥 Error:", error);
+
+        console.log("==============================================");
+
+        throw error;
+      }
+    };
+
+    console.log("✅ Global fetch() API debugger installed");
+    console.log("==============================================");
+  </script>
+
+
+  <div class="app-shell">
+
+    <!-- =========================================================
+         SIDEBAR
+         ========================================================= -->
+
+    <aside class="sidebar" id="sidebar">
+
+      <div class="sidebar-brand">
+
+        <div class="brand-logo">
+
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+
+            <defs>
+
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+
+                <stop offset="0%" stop-color="#19B8C7" />
+                <stop offset="100%" stop-color="#0F9D8A" />
+
+              </linearGradient>
+
+            </defs>
+
+            <path d="M20 3 L34 8 V20 C34 28 28 34 20 37 C12 34 6 28 6 20 V8 Z" fill="none" stroke="url(#logoGrad)"
+              stroke-width="1.5" />
+
+            <path d="M10 26 L16 16 L20 22 L24 14 L30 26 Z" fill="url(#logoGrad)" opacity="0.85" />
+
+            <circle cx="24" cy="14" r="2" fill="#19B8C7" />
+
+          </svg>
+
         </div>
+
+        <div class="brand-text">
+
+          <span class="brand-name">
+            SAHAYAK
+          </span>
+
+          <span class="brand-sub">
+            NER Landslide Intelligence
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <nav class="sidebar-nav" id="sidebarNav"></nav>
+
+
+      <div class="sidebar-footer">
+
+        <div class="sidebar-status">
+
+          <span class="status-dot"></span>
+
+          <span>
+            System Operational
+          </span>
+
+        </div>
+
+
+        <div class="sidebar-user">
+
+          <div class="user-avatar">
+            AU
+          </div>
+
+          <div class="user-info">
+
+            <div class="user-name">
+              Authority
+            </div>
+
+            <div class="user-role">
+              Administrator
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+
+    <div class="sidebar-overlay" id="sidebarOverlay">
+    </div>
+
+
+    <!-- =========================================================
+         TOP HEADER
+         ========================================================= -->
+
+    <header class="top-header">
+
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+
+          <line x1="3" y1="12" x2="21" y2="12" />
+
+          <line x1="3" y1="6" x2="21" y2="6" />
+
+          <line x1="3" y1="18" x2="21" y2="18" />
+
+        </svg>
+
+      </button>
+
+
+      <div class="header-title-wrap">
+
+        <h1 class="header-title">
+          ENVIRONMENTAL INTELLIGENCE
+        </h1>
+
+        <div class="header-subtitle">
+          Rainfall, terrain, satellite and historical landslide monitoring
+        </div>
+
+      </div>
+
+
+      <div class="header-actions">
+
+        <div class="header-system-status">
+
+          <span class="status-dot"></span>
+
+          <span>
+            Operational
+          </span>
+
+        </div>
+
+
+        <div style="position: relative;">
+
+          <button class="icon-btn" id="notificationBtn" aria-label="Notifications">
+
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+
+            </svg>
+
+
+            <span class="notification-badge" id="notificationBadge" style="display:none;">
+
+              0
+
+            </span>
+
+          </button>
+
+
+          <div class="notification-panel" id="notificationPanel">
+
+            <div class="notification-panel-header">
+
+              <div class="notification-panel-title">
+                Notifications
+              </div>
+
+              <span class="notification-mark-read" onclick="window.SahayakMonitoring.markAllNotificationsRead()">
+
+                Mark all read
+
+              </span>
+
+            </div>
+
+
+            <div class="notification-list" id="notificationList">
+            </div>
+
+          </div>
+
+        </div>
+
+
         <select class="lang-selector" aria-label="Language">
-          <option>EN</option><option>HI</option><option>BN</option><option>AS</option>
+
+          <option>EN</option>
+          <option>HI</option>
+          <option>BN</option>
+          <option>AS</option>
+
         </select>
+
+
         <button class="header-user">
-    <div class="user-avatar" id="headerUserAvatar">U</div>
-    <span class="header-user-name" id="headerUserName">User</span>
-</button>
+
+          <div class="user-avatar">
+            AU
+          </div>
+
+          <span class="header-user-name">
+            Authority
+          </span>
+
+        </button>
+
+      </div>
+
     </header>
 
-    <!-- STATUS BAR -->
+
+    <!-- =========================================================
+         STATUS BAR
+         ========================================================= -->
+
     <div class="status-bar">
-      <div class="status-bar-item"><span class="status-bar-label">System Status</span><span class="status-bar-value" style="color: var(--safe);">Operational</span></div>
+
+      <div class="status-bar-item">
+
+        <span class="status-bar-label">
+          System Status
+        </span>
+
+        <span class="status-bar-value" style="color: var(--safe);">
+
+          Operational
+
+        </span>
+
+      </div>
+
+
       <div class="status-bar-divider"></div>
-      <div class="status-bar-item"><span class="status-bar-label">Data Sources</span><span class="status-bar-value">5/5 Online</span></div>
+
+
+      <div class="status-bar-item">
+
+        <span class="status-bar-label">
+          Data Sources
+        </span>
+
+        <span class="status-bar-value" id="dataSourceStatus">
+
+          Loading...
+
+        </span>
+
+      </div>
+
+
       <div class="status-bar-divider"></div>
-      <div class="status-bar-item"><span class="status-bar-label">Session</span><span class="status-bar-value" style="color: var(--watch);">Prototype Session</span></div>
+
+
+      <div class="status-bar-item">
+
+        <span class="status-bar-label">
+          Session
+        </span>
+
+        <span class="status-bar-value" style="color: var(--watch);">
+
+          Prototype Session
+
+        </span>
+
+      </div>
+
     </div>
 
-    <!-- MAIN CONTENT -->
+
+    <!-- =========================================================
+         MAIN CONTENT
+         ========================================================= -->
+
     <main class="main-content">
+
       <!-- Page Header -->
+
       <div class="page-header" style="margin-bottom: var(--space-4);">
+
         <div class="page-header-left">
+
           <h2 class="page-title">
+
             ENVIRONMENTAL INTELLIGENCE
-            <span class="page-title-badge">MONITORING CONSOLE</span>
+
+            <span class="page-title-badge">
+              MONITORING CONSOLE
+            </span>
+
           </h2>
-          <p class="page-subtitle">Rainfall, terrain, satellite and historical landslide monitoring</p>
+
+
+          <p class="page-subtitle">
+            Rainfall, terrain, satellite and historical landslide monitoring
+          </p>
+
         </div>
+
       </div>
+
 
       <!-- Location Selector -->
+
       <div class="monitoring-location-bar">
-        <div class="monitoring-location-label">Analyzing Location</div>
-        <select class="monitoring-location-select" id="locationSelect" aria-label="Select location"></select>
-        <div class="monitoring-quick-nav">
-          <a href="risk-map.html" class="btn btn-outline">View Risk Map →</a>
-          <a href="risk-analysis.html" class="btn btn-outline">Analyze Risk →</a>
-          <a href="alerts.html" class="btn btn-outline">View Alerts →</a>
+
+        <div class="monitoring-location-label">
+          Analyzing Location
         </div>
+
+
+        <select class="monitoring-location-select" id="locationSelect" aria-label="Select location">
+        </select>
+
+
+        <div class="monitoring-quick-nav">
+
+          <a href="risk-map.html" class="btn btn-outline">
+
+            View Risk Map →
+
+          </a>
+
+
+          <a href="risk-analysis.html" class="btn btn-outline">
+
+            Analyze Risk →
+
+          </a>
+
+
+          <a href="alerts.html" class="btn btn-outline">
+
+            View Alerts →
+
+          </a>
+
+        </div>
+
       </div>
 
-      <!-- Tab Navigation -->
+
+      <!-- =====================================================
+           TAB NAVIGATION
+           ===================================================== -->
+
       <div class="monitoring-tabs">
+
         <button class="monitoring-tab active" data-tab="rainfall">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
+
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+
+            <line x1="16" y1="13" x2="16" y2="21" />
+
+            <line x1="8" y1="13" x2="8" y2="21" />
+
+            <line x1="12" y1="15" x2="12" y2="23" />
+
+            <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25" />
+
+          </svg>
+
           RAINFALL
+
         </button>
-        <button class="monitoring-tab"  data-tab="terrain">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20l4-8 4 4 4-10 6 14"/></svg>
+
+
+        <button class="monitoring-tab" data-tab="terrain">
+
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+
+            <path d="M3 20l4-8 4 4 4-10 6 14" />
+
+          </svg>
+
           TERRAIN & SOIL
+
         </button>
-        <button class="monitoring-tab"  data-tab="satellite">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/></svg>
+
+
+        <button class="monitoring-tab" data-tab="satellite">
+
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+
+            <circle cx="12" cy="12" r="10" />
+
+            <circle cx="12" cy="12" r="4" />
+
+            <line x1="21.17" y1="8" x2="12" y2="8" />
+
+          </svg>
+
           SATELLITE
+
         </button>
+
+
         <button class="monitoring-tab" data-tab="historical">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+
+            <circle cx="12" cy="12" r="10" />
+
+            <polyline points="12 6 12 12 16 14" />
+
+          </svg>
+
           HISTORICAL
+
         </button>
+
       </div>
+
 
       <!-- Loading -->
+
       <div id="monitoringLoading" class="state-message" style="display: none;">
+
         <div class="loading-spinner"></div>
-        <div class="state-message-title">Loading environmental intelligence...</div>
-      </div>
 
-      <!-- ============ TAB: RAINFALL ============ -->
-      <div class="tab-content active" data-content="rainfall">
-        <div class="monitoring-summary" id="rainfallSummaryCards"></div>
-
-        <div class="monitoring-section">
-          <div class="monitoring-section-header">
-            <div class="monitoring-section-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
-              Rainfall Monitoring — Last 24 Hours
-            </div>
-            <div style="display: flex; gap: var(--space-2); align-items: center;">
-              <span class="freshness-inline">
-                <span class="freshness-inline-dot fresh"></span>
-                Fresh — 12 min ago
-              </span>
-              <span class="monitoring-section-badge">DEMO</span>
-            </div>
-          </div>
-          <div class="monitoring-section-body">
-            <div class="chart-container">
-              <canvas id="rainfallChart"></canvas>
-            </div>
-            <div class="chart-caption">Illustrative Demo Data</div>
-
-            <div class="rainfall-risk-indicator" id="rainfallRiskIndicator"></div>
-            <div class="rainfall-alert-banner" id="rainfallAlertBanner" style="display: none;"></div>
-          </div>
+        <div class="state-message-title">
+          Loading environmental intelligence...
         </div>
+
       </div>
 
-      <!-- ============ TAB: TERRAIN ============ -->
-      <div class="tab-content" data-content="terrain">
+
+      <!-- =====================================================
+           RAINFALL
+           ===================================================== -->
+
+      <div class="tab-content active" data-content="rainfall">
+
+        <div class="monitoring-summary" id="rainfallSummaryCards">
+        </div>
+
+
         <div class="monitoring-section">
+
           <div class="monitoring-section-header">
+
             <div class="monitoring-section-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20l4-8 4 4 4-10 6 14"/></svg>
-              Terrain & Soil Analysis
+
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+
+                <line x1="16" y1="13" x2="16" y2="21" />
+                <line x1="8" y1="13" x2="8" y2="21" />
+                <line x1="12" y1="15" x2="12" y2="23" />
+
+                <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25" />
+
+              </svg>
+
+              Rainfall Monitoring — Last 24 Hours
+
             </div>
+
+
             <div style="display: flex; gap: var(--space-2); align-items: center;">
-              <span class="freshness-inline">
+
+              <span class="freshness-inline" id="rainfallFreshness">
+
                 <span class="freshness-inline-dot fresh"></span>
-                Available — 18 min ago
+
+                Loading live data...
+
               </span>
-              <span class="monitoring-section-badge">DEMO</span>
+
+
+              <span class="monitoring-section-badge" id="rainfallDataBadge">
+
+                LIVE API
+
+              </span>
+
             </div>
+
           </div>
+
+
           <div class="monitoring-section-body">
-            <div class="terrain-gauges" id="terrainGauges"></div>
+
+            <div class="chart-container">
+
+              <canvas id="rainfallChart"></canvas>
+
+            </div>
+
+
+            <div class="chart-caption" id="rainfallSourceCaption">
+
+              Source: Open-Meteo precipitation data
+
+            </div>
+
+
+            <div class="rainfall-risk-indicator" id="rainfallRiskIndicator">
+            </div>
+
+
+            <div class="rainfall-alert-banner" id="rainfallAlertBanner" style="display: none;">
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- =====================================================
+           TERRAIN
+           ===================================================== -->
+
+      <div class="tab-content" data-content="terrain">
+
+        <div class="monitoring-section">
+
+          <div class="monitoring-section-header">
+
+            <div class="monitoring-section-title">
+
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+
+                <path d="M3 20l4-8 4 4 4-10 6 14" />
+
+              </svg>
+
+              Terrain & Soil Analysis
+
+            </div>
+
+
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+
+              <span class="freshness-inline" id="terrainFreshness">
+
+                <span class="freshness-inline-dot fresh"></span>
+
+                Loading terrain data...
+
+              </span>
+
+
+              <span class="monitoring-section-badge" id="terrainDataBadge">
+
+                PARTIAL LIVE
+
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <div class="monitoring-section-body">
+
+            <div class="terrain-gauges" id="terrainGauges">
+            </div>
+
 
             <div class="terrain-profile">
-              <div class="terrain-profile-title">Terrain Elevation Profile</div>
+
+              <div class="terrain-profile-title">
+                Terrain Elevation Profile
+              </div>
+
               <div id="terrainProfile"></div>
+
             </div>
 
-            <div class="comparison-grid" id="terrainComparison"></div>
-            <div class="deviation-banner" id="deviationBanner" style="display: none;"></div>
+
+            <div class="comparison-grid" id="terrainComparison">
+            </div>
+
+
+            <div class="deviation-banner" id="deviationBanner" style="display: none;">
+            </div>
+
           </div>
+
         </div>
+
       </div>
 
-      <!-- ============ TAB: SATELLITE ============ -->
+
+      <!-- =====================================================
+           SATELLITE
+           ===================================================== -->
+
       <div class="tab-content" data-content="satellite">
+
         <div class="monitoring-section">
+
           <div class="monitoring-section-header">
+
             <div class="monitoring-section-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/></svg>
+
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+
+                <circle cx="12" cy="12" r="10" />
+
+                <circle cx="12" cy="12" r="4" />
+
+                <line x1="21.17" y1="8" x2="12" y2="8" />
+
+              </svg>
+
               Satellite Intelligence
+
             </div>
+
+
             <div style="display: flex; gap: var(--space-2); align-items: center;">
-              <span class="freshness-inline">
+
+              <span class="freshness-inline" id="satelliteFreshness">
+
                 <span class="freshness-inline-dot delayed"></span>
-                Delayed — 4 hours ago
+
+                Source status unavailable
+
               </span>
-              <span class="monitoring-section-badge">DEMO</span>
+
+
+              <span class="monitoring-section-badge" id="satelliteDataBadge">
+
+                DATA SOURCE REQUIRED
+
+              </span>
+
             </div>
+
           </div>
+
+
           <div class="monitoring-section-body">
-            <div class="satellite-comparison">
+
+            <div id="satelliteMap" style="height: 360px; border-radius: var(--radius-md); overflow: hidden;"></div>
+
+            <div class="satellite-comparison" style="display:none;">
+
               <div class="satellite-layer before">
-                <span class="satellite-layer-label">BEFORE · T-7 DAYS</span>
+
+                <span class="satellite-layer-label">
+                  BEFORE · T-7 DAYS
+                </span>
+
               </div>
+
+
               <div class="satellite-layer after">
-                <span class="satellite-layer-label">AFTER · CURRENT</span>
+
+                <span class="satellite-layer-label">
+                  AFTER · CURRENT
+                </span>
+
               </div>
+
+
               <div class="satellite-slider-handle"></div>
-              <div class="satellite-demo-badge">DEMO TERRAIN VISUALIZATION</div>
+
+
+              <div class="satellite-demo-badge">
+                SATELLITE VISUALIZATION
+              </div>
+
             </div>
 
-            <div class="satellite-alert" id="satelliteAlert" style="display: none;"></div>
 
-            <div class="satellite-indicators" id="satelliteIndicators"></div>
+            <div class="satellite-alert" id="satelliteAlert" style="display: none;">
+            </div>
 
-            <div class="satellite-change-bars" id="satelliteChangeBars"></div>
+
+            <div class="satellite-indicators" id="satelliteIndicators">
+            </div>
+
+
+            <div class="satellite-change-bars" id="satelliteChangeBars">
+            </div>
+
 
             <div style="margin-top: var(--space-4); display: flex; gap: var(--space-2); flex-wrap: wrap;">
-              <a href="risk-map.html" class="btn btn-primary">View on Risk Map →</a>
-              <button class="btn btn-outline">Download Report</button>
+
+              <a href="risk-map.html" class="btn btn-primary">
+
+                View on Risk Map →
+
+              </a>
+
+
+              <button class="btn btn-outline">
+                Download Report
+              </button>
+
             </div>
 
-            <div style="margin-top: var(--space-3); padding: var(--space-3); background: var(--watch-bg); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: var(--radius-md); font-size: var(--fs-xs); color: var(--watch);">
-              <strong>Disclaimer:</strong> Illustrative Satellite Analysis — DEMO. These are not real satellite observations.
+
+            <div id="satelliteSourceNotice" style="
+                margin-top: var(--space-3);
+                padding: var(--space-3);
+                background: var(--watch-bg);
+                border: 1px solid rgba(234, 179, 8, 0.25);
+                border-radius: var(--radius-md);
+                font-size: var(--fs-xs);
+                color: var(--watch);
+              ">
+
+              <strong>Data Sources:</strong> Esri World Imagery is used as the
+              visible satellite basemap; NASA GIBS is available as an optional
+              imagery overlay. These are real remote-sensing imagery layers.
+              Automated NDVI/SAR/landslide classification is not fabricated.
+
             </div>
+
           </div>
+
         </div>
+
       </div>
 
-      <!-- ============ TAB: HISTORICAL ============ -->
+
+      <!-- =====================================================
+           HISTORICAL
+           ===================================================== -->
+
       <div class="tab-content" data-content="historical">
-        <div class="historical-summary" id="historicalSummaryCards"></div>
 
-        <div class="monitoring-section">
-          <div class="monitoring-section-header">
-            <div class="monitoring-section-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              Historical Landslide Explorer
-            </div>
-            <div style="display: flex; gap: var(--space-2); align-items: center;">
-              <span class="freshness-inline">
-                <span class="freshness-inline-dot fresh"></span>
-                Available — Updated yesterday
-              </span>
-              <span class="monitoring-section-badge">DEMO</span>
-            </div>
-          </div>
-          <div class="monitoring-section-body">
-            <div class="historical-charts-grid">
-              <div>
-                <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-500); margin-bottom: var(--space-2); text-transform: uppercase;">Landslides by State</div>
-                <div class="chart-container medium"><canvas id="byStateChart"></canvas></div>
-              </div>
-              <div>
-                <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-500); margin-bottom: var(--space-2); text-transform: uppercase;">Events by Year</div>
-                <div class="chart-container medium"><canvas id="byYearChart"></canvas></div>
-              </div>
-            </div>
-
-            <div style="margin-bottom: var(--space-5);">
-              <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-500); margin-bottom: var(--space-2); text-transform: uppercase;">Seasonal Distribution</div>
-              <div class="chart-container medium" style="max-width: 400px; margin: 0 auto;"><canvas id="seasonalChart"></canvas></div>
-            </div>
-
-            <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-500); margin-bottom: var(--space-2); text-transform: uppercase;">Event Locations</div>
-            <div class="historical-map-container">
-              <div id="historicalMap"></div>
-            </div>
-            <div class="historical-map-legend">
-              <div class="historical-map-legend-item"><span class="historical-map-legend-dot" style="background: var(--warning);"></span>Critical</div>
-              <div class="historical-map-legend-item"><span class="historical-map-legend-dot" style="background: var(--alert);"></span>High</div>
-              <div class="historical-map-legend-item"><span class="historical-map-legend-dot" style="background: var(--watch);"></span>Moderate</div>
-              <div class="historical-map-legend-item"><span class="historical-map-legend-dot" style="background: var(--safe);"></span>Low</div>
-            </div>
-            <div class="chart-caption">Synthetic demonstration dataset</div>
-          </div>
+        <div class="historical-summary" id="historicalSummaryCards">
         </div>
 
-        <!-- Historical Table -->
+
+        <div class="monitoring-section">
+
+          <div class="monitoring-section-header">
+
+            <div class="monitoring-section-title">
+
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+
+                <circle cx="12" cy="12" r="10" />
+
+                <polyline points="12 6 12 12 16 14" />
+
+              </svg>
+
+              Historical Landslide Explorer
+
+            </div>
+
+
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+
+              <span class="freshness-inline" id="historicalFreshness">
+
+                <span class="freshness-inline-dot delayed"></span>
+
+                Dataset source status
+
+              </span>
+
+
+              <span class="monitoring-section-badge" id="historicalDataBadge">
+
+                OFFICIAL DATASET
+
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <div class="monitoring-section-body">
+
+            <div class="historical-charts-grid">
+
+              <div>
+
+                <div style="
+                    font-size: 10px;
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    color: var(--text-500);
+                    margin-bottom: var(--space-2);
+                    text-transform: uppercase;
+                  ">
+
+                  Landslide Inventory by State — NE India
+
+                </div>
+
+
+                <div class="chart-container medium">
+
+                  <canvas id="byStateChart"></canvas>
+
+                </div>
+
+              </div>
+
+
+              <div>
+
+                <div style="
+                    font-size: 10px;
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    color: var(--text-500);
+                    margin-bottom: var(--space-2);
+                    text-transform: uppercase;
+                  ">
+
+                  Inventory by Campaign / Source Type
+
+                </div>
+
+
+                <div class="chart-container medium">
+
+                  <canvas id="byYearChart"></canvas>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <div style="margin-bottom: var(--space-5);">
+
+              <div style="
+                  font-size: 10px;
+                  font-weight: 700;
+                  letter-spacing: 0.1em;
+                  color: var(--text-500);
+                  margin-bottom: var(--space-2);
+                  text-transform: uppercase;
+                ">
+
+                National Inventory Composition
+
+              </div>
+
+
+              <div class="chart-container medium" style="max-width: 400px; margin: 0 auto;">
+
+                <canvas id="seasonalChart"></canvas>
+
+              </div>
+
+            </div>
+
+
+            <div style="margin-bottom: var(--space-5);">
+              <div
+                style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-500); margin-bottom: var(--space-2); text-transform: uppercase;">
+                Historical Rainfall — Last 30 Days
+              </div>
+              <div class="chart-container medium">
+                <canvas id="historicalRainfallChart"></canvas>
+              </div>
+              <div class="chart-caption" id="historicalRainfallSourceCaption">Loading historical rainfall...</div>
+            </div>
+
+            <div style="
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.1em;
+                color: var(--text-500);
+                margin-bottom: var(--space-2);
+                text-transform: uppercase;
+              ">
+
+              Selected Location / Inventory Coverage
+
+            </div>
+
+
+            <div class="historical-map-container">
+
+              <div id="historicalMap"></div>
+
+            </div>
+
+
+            <div class="chart-caption" style="margin-top: var(--space-3);">
+              The map shows the selected monitoring location. Official ISRO
+              inventory counts are shown in the charts/table; no synthetic event
+              markers are used.
+            </div>
+
+
+            <div class="chart-caption" id="historicalSourceCaption">
+
+              Source: ISRO / NRSC Landslide Atlas of India (1998–2022).
+              The atlas reports approximately 80,933 mapped landslides nationally.
+              Event-level coordinates are not invented in this dashboard.
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- Historical Inventory Table -->
         <div class="monitoring-section">
           <div class="monitoring-section-header">
-            <div class="monitoring-section-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-              Event Database
-            </div>
+            <div class="monitoring-section-title">Official NE India Inventory Summary</div>
           </div>
           <div class="monitoring-section-body">
             <div class="historical-filters">
-              <input type="text" id="historicalSearch" placeholder="Search location, ID, state...">
+              <input type="text" id="historicalSearch" placeholder="Search state...">
               <select id="historicalState">
                 <option value="all">All States</option>
                 <option value="Arunachal Pradesh">Arunachal Pradesh</option>
@@ -313,50 +1057,20 @@
                 <option value="Mizoram">Mizoram</option>
                 <option value="Tripura">Tripura</option>
               </select>
-              <select id="historicalSeverity">
-                <option value="all">All Severity</option>
-                <option value="CRITICAL">Critical</option>
-                <option value="HIGH">High</option>
-                <option value="MODERATE">Moderate</option>
-                <option value="LOW">Low</option>
-              </select>
-              <select id="historicalYear">
-                <option value="all">All Years</option>
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
-                <option value="2023">2023</option>
-                <option value="2022">2022</option>
-                <option value="2021">2021</option>
-              </select>
-              <select id="historicalCause">
-                <option value="all">All Causes</option>
-                <option value="Heavy Rainfall">Heavy Rainfall</option>
-                <option value="Extreme Rainfall">Extreme Rainfall</option>
-                <option value="Prolonged Rainfall">Prolonged Rainfall</option>
-                <option value="Soil Saturation">Soil Saturation</option>
-                <option value="Rainfall + Steep Slope">Rainfall + Steep Slope</option>
-                <option value="Rainfall + Seismic">Rainfall + Seismic</option>
-                <option value="Moderate Rainfall">Moderate Rainfall</option>
-                <option value="Freeze-Thaw">Freeze-Thaw</option>
-              </select>
             </div>
-
-            <div id="historicalEmpty" class="state-message" style="display: none;">
-              <div class="state-message-title">No historical events found</div>
-              <div class="state-message-sub">Try adjusting your filters.</div>
+            <div id="historicalEmpty" class="state-message" style="display:none;">
+              <div class="state-message-title">No inventory records found</div>
+              <div class="state-message-sub">Try another state or clear the search.</div>
             </div>
-
             <div class="historical-table-wrap">
               <table class="historical-table">
                 <thead>
                   <tr>
-                    <th>Event ID</th>
-                    <th>Location</th>
                     <th>State</th>
-                    <th>Date</th>
-                    <th>Severity</th>
-                    <th>Cause</th>
-                    <th>Damage</th>
+                    <th>2014 Seasonal</th>
+                    <th>2017 Seasonal</th>
+                    <th>Seasonal Total</th>
+                    <th>Coverage</th>
                     <th>Source</th>
                   </tr>
                 </thead>
@@ -365,28 +1079,192 @@
             </div>
           </div>
         </div>
+
       </div>
 
-      <!-- Disclaimer Footer -->
-      <div style="margin-top: var(--space-6); padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); text-align: center;">
-        <div style="font-size: var(--fs-xs); color: var(--text-600); line-height: 1.6; max-width: 720px; margin: 0 auto;">
-          <strong>Core Concept:</strong> ENVIRONMENT → CHANGE → HISTORY → RISK. Rainfall + Soil + Terrain + Satellite + Historical Events feed into the SAHAYAK risk intelligence system.
+
+      <!-- =====================================================
+           FOOTER
+           ===================================================== -->
+
+      <div style="
+          margin-top: var(--space-6);
+          padding: var(--space-4);
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-lg);
+          text-align: center;
+        ">
+
+        <div style="
+            font-size: var(--fs-xs);
+            color: var(--text-600);
+            line-height: 1.6;
+            max-width: 720px;
+            margin: 0 auto;
+          ">
+
+          <strong>Core Concept:</strong>
+
+          ENVIRONMENT → CHANGE → HISTORY → RISK.
+
+          Rainfall + Soil + Terrain + Satellite + Historical Events feed into
+          the SAHAYAK risk intelligence system.
+
         </div>
-        <div style="display: flex; justify-content: center; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
-          <span class="demo-tag">SIH 2026 PROTOTYPE</span>
-          <span class="demo-tag">DEMO DATA</span>
-          <span class="demo-tag">ILLUSTRATIVE ENVIRONMENTAL ANALYSIS</span>
+
+
+        <div style="
+            display: flex;
+            justify-content: center;
+            gap: var(--space-2);
+            margin-top: var(--space-3);
+            flex-wrap: wrap;
+          ">
+
+          <span class="demo-tag">
+            SIH 2026 PROTOTYPE
+          </span>
+
+          <span class="demo-tag">
+            LIVE API INTEGRATION
+          </span>
+
+          <span class="demo-tag">
+            ENVIRONMENTAL INTELLIGENCE
+          </span>
+
         </div>
+
       </div>
+
     </main>
+
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/services.js"></script>
-  <script src="js/main.js"></script>
-  <script src="js/dashboard.js"></script>
-  <script src="js/monitoring.js"></script>
+
+  <!-- =========================================================
+       LIBRARIES
+       ========================================================= -->
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" onload="
+      console.log('✅ Leaflet loaded successfully');
+      console.log('Leaflet version:', window.L?.version);
+    " onerror="
+      console.error('❌ Leaflet FAILED to load');
+    ">
+    </script>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" onload="
+      console.log('✅ Chart.js loaded successfully');
+      console.log('Chart.js version:', window.Chart?.version);
+    " onerror="
+      console.error('❌ Chart.js FAILED to load');
+    ">
+    </script>
+
+
+  <!-- =========================================================
+       APPLICATION SCRIPTS
+       ========================================================= -->
+
+  <script src="js/data.js" onload="
+      console.log('✅ js/data.js loaded successfully');
+    " onerror="
+      console.error('❌ js/data.js FAILED TO LOAD');
+    ">
+    </script>
+
+
+  <script src="js/services.js" onload="
+      console.log('✅ js/services.js loaded successfully');
+      console.log('🔧 Services object:', window.Services || 'Services not found globally');
+    " onerror="
+      console.error('❌ js/services.js FAILED TO LOAD');
+    ">
+    </script>
+
+
+  <script src="js/main.js" onload="
+      console.log('✅ js/main.js loaded successfully');
+    " onerror="
+      console.error('❌ js/main.js FAILED TO LOAD');
+    ">
+    </script>
+
+
+  <script src="js/dashboard.js" onload="
+      console.log('✅ js/dashboard.js loaded successfully');
+    " onerror="
+      console.error('❌ js/dashboard.js FAILED TO LOAD');
+    ">
+    </script>
+
+
+  <script src="js/monitoring.js" onload="
+      console.log('✅ js/monitoring.js loaded successfully');
+      console.log('🔍 SahayakMonitoring:', window.SahayakMonitoring || 'NOT FOUND');
+      console.log('==============================================');
+      console.log('🏁 ALL APPLICATION SCRIPTS LOADED');
+      console.log('==============================================');
+    " onerror="
+      console.error('❌ js/monitoring.js FAILED TO LOAD');
+    ">
+    </script>
+
+
+  <!-- =========================================================
+       FINAL DEBUG
+       ========================================================= -->
+
+  <script>
+
+    console.log("==============================================");
+    console.log("🔎 FINAL MONITORING DEBUG CHECK");
+    console.log("==============================================");
+
+    console.log(
+      "📌 locationSelect element:",
+      document.getElementById("locationSelect")
+    );
+
+    console.log(
+      "📌 rainfallChart element:",
+      document.getElementById("rainfallChart")
+    );
+
+    console.log(
+      "📌 terrainGauges element:",
+      document.getElementById("terrainGauges")
+    );
+
+    console.log(
+      "📌 satelliteIndicators element:",
+      document.getElementById("satelliteIndicators")
+    );
+
+    console.log(
+      "📌 historicalTableBody element:",
+      document.getElementById("historicalTableBody")
+    );
+
+    console.log(
+      "📌 Services:",
+      window.Services
+    );
+
+    console.log(
+      "📌 SahayakMonitoring:",
+      window.SahayakMonitoring
+    );
+
+    console.log("==============================================");
+    console.log("🎯 NOW SELECT/CHANGE LOCATION TO TEST API");
+    console.log("==============================================");
+
+  </script>
+
 </body>
+
 </html>
