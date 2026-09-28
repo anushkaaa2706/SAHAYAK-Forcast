@@ -361,7 +361,7 @@
   
     // ============ RAINFALL ============
     async function loadRainfall() {
-      const data = await Services.getRainfallData();
+      const data = await Services.getRainfallMapData();
       state.layerGroups.rainfall = L.layerGroup();
   
       data.forEach(d => {

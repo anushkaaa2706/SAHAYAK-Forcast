@@ -22,6 +22,7 @@ const Services = {
   // ============================================================
 
   API: {
+    
     OPEN_METEO: 'https://api.open-meteo.com/v1/forecast',
     OPEN_METEO_GEOCODING: 'https://geocoding-api.open-meteo.com/v1/search',
     OPEN_METEO_ARCHIVE: 'https://archive-api.open-meteo.com/v1/archive',
@@ -31,6 +32,7 @@ const Services = {
     OSRM: 'https://router.project-osrm.org/route/v1/driving'
   },
 
+  ML_API_BASE: 'https://sahayak-ml-api.onrender.com',
   // Published ISRO / NRSC Landslide Atlas inventory counts.
   // These are real inventory records, not synthetic event rows.
   ISRO_LANDSLIDE_INVENTORY: {
@@ -233,14 +235,101 @@ const Services = {
     };
   },
 
-  async getAllRiskZones() {
-    await this._delay(100);
-
-    return (DEMO_DATA.riskZones || []).map(z => ({
-      ...z,
-      isDemo: true
-    }));
-  },
+_mapLevelFromRisk(score) {
+  if (score >= 81) return 'WARNING';
+  if (score >= 61) return 'ALERT';
+  if (score >= 31) return 'WATCH';
+  return 'SAFE';
+},
+ 
+_prettyFeature(name) {
+  const labels = {
+    elevation: 'Elevation',
+    slope: 'Slope steepness',
+    aspect: 'Slope orientation',
+    rain_1d: 'Rainfall (last 24h)',
+    rain_3d: 'Rainfall (last 3 days)',
+    rain_7d: 'Rainfall (last 7 days)',
+    rain_7d_anomaly: 'Rainfall vs seasonal norm'
+  };
+  return labels[name] || name;
+},
+ 
+// One zone -> one call to the deployed model. Cached for 10 minutes
+// per browser tab so reloading the map does not hit the API again.
+async _fetchZoneModelScore(zone) {
+  const cacheKey = `sahayak_zone_score_${zone.id}`;
+  const TTL = 10 * 60 * 1000;
+ 
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+    if (cached && Date.now() - cached.at < TTL) return cached.data;
+  } catch (e) { /* storage unavailable, ignore */ }
+ 
+  const url = `${this.ML_API_BASE}/risk-score?lat=${zone.lat}&lon=${zone.lng}`;
+  const data = await this._safeFetch(url, null, { timeout: 60000 });
+ 
+  if (!data || !Number.isFinite(Number(data.risk_score))) return null;
+ 
+  try {
+    sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data }));
+  } catch (e) { /* ignore */ }
+ 
+  return data;
+},
+ 
+// (3) REPLACE the old getAllRiskZones() (the one that returns DEMO_DATA)
+// with this one. Delete the old version so there is only one.
+async getAllRiskZones() {
+  const zones = DEMO_DATA.riskZones || [];
+  if (!zones.length) return [];
+ 
+  const results = new Array(zones.length).fill(null);
+ 
+  // First request goes alone: it wakes the Render instance if it is asleep.
+  results[0] = await this._fetchZoneModelScore(zones[0]);
+ 
+  if (!results[0]) {
+    console.warn('ML API not reachable, risk map is showing demo scores');
+    return zones.map(z => ({ ...z, isDemo: true }));
+  }
+ 
+  // Remaining zones in small batches so the API's terrain lookup
+  // does not get rate limited.
+  const BATCH = 3;
+  for (let i = 1; i < zones.length; i += BATCH) {
+    const chunk = zones.slice(i, i + BATCH);
+    const out = await Promise.all(chunk.map(z => this._fetchZoneModelScore(z)));
+    out.forEach((r, j) => { results[i + j] = r; });
+  }
+ 
+  // Write live values back into DEMO_DATA.riskZones itself, because
+  // risk-map.js (filters, search, info panel) reads that array directly.
+  zones.forEach((zone, i) => {
+    const live = results[i];
+    if (!live) { zone.isLive = false; return; }
+ 
+    const score = Math.max(0, Math.min(100, Math.round(Number(live.risk_score))));
+    zone.risk = score;
+    zone.level = this._mapLevelFromRisk(score);
+    zone.modelRiskLevel = live.risk_level;
+    zone.isLive = true;
+    zone.liveUpdated = new Date().toISOString();
+ 
+    if (Array.isArray(live.top_factors) && live.top_factors.length) {
+      zone.factors = live.top_factors.map(f => {
+        const c = Number(f.contribution || 0);
+        return {
+          label: this._prettyFeature(f.feature) + (c < 0 ? ' (lowers risk)' : ''),
+          value: Math.round(Math.abs(c) * 100)
+        };
+      });
+    }
+  });
+ 
+  return zones.map(z => ({ ...z, isDemo: !z.isLive }));
+},
+ 
 
 
   // ============================================================
@@ -2228,6 +2317,29 @@ const Services = {
       {}
     );
   },
+  // ADD THESE 3 methods inside "const Services = { ... }" in services.js
+// (paste anywhere inside the object, e.g. right after getMetrics())
+// risk-map.js calls these but they were not carried over when
+// services.js was rewritten with the live-API architecture.
+
+async getCitizenReports() {
+  await this._delay(50);
+  return (DEMO_DATA.citizenReports || []).map(r => ({ ...r, isDemo: true }));
+},
+
+async getSatelliteAnomalies() {
+  await this._delay(50);
+  return (DEMO_DATA.satelliteAnomalies || []).map(a => ({ ...a, isDemo: true }));
+},
+
+// risk-map.js's rainfall map-marker layer needs spatial points
+// ({lat, lng, location, intensity, level}), not the hourly time-series
+// that getRainfallData() now correctly returns for the monitoring page.
+// This keeps both use cases working without changing getRainfallData().
+async getRainfallMapData() {
+  await this._delay(50);
+  return (DEMO_DATA.rainfallData || []).map(r => ({ ...r, isDemo: true }));
+},
 
 
   // ============================================================
