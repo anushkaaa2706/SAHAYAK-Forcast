@@ -2434,8 +2434,104 @@ async getRainfallMapData() {
   await this._delay(50);
   return (DEMO_DATA.rainfallData || []).map(r => ({ ...r, isDemo: true }));
 },
+  // ============================================================
+  // SIMULATOR (MISSING FUNCTIONS)
+  // ============================================================
 
+  async getSimulationPresets() {
+    await this._delay(50);
+    return {
+      current: {
+        name: 'Current Conditions',
+        rainfallMultiplier: 1.0,
+        soilMultiplier: 1.0,
+        slopeMultiplier: 1.0,
+        historicalMultiplier: 1.0,
+        satelliteMultiplier: 1.0
+      },
+      moderate: {
+        name: 'Moderate Scenario',
+        rainfallMultiplier: 1.4,
+        soilMultiplier: 1.2,
+        slopeMultiplier: 1.0,
+        historicalMultiplier: 1.1,
+        satelliteMultiplier: 1.2
+      },
+      severe: {
+        name: 'Severe Scenario',
+        rainfallMultiplier: 1.8,
+        soilMultiplier: 1.5,
+        slopeMultiplier: 1.1,
+        historicalMultiplier: 1.3,
+        satelliteMultiplier: 1.5
+      }
+    };
+  },
 
+  async runSimulation(locationName, params) {
+    await this._delay(800); // Simulate API call delay
+
+    const zone = this._findZone(locationName);
+    if (!zone) {
+      return { error: 'Location not found' };
+    }
+
+    const baseline = zone.simulatorBaseline || {
+      rainfall: zone.rainfall || 100,
+      soilMoisture: zone.soilMoisture || 50,
+      slope: zone.slope || 25,
+      historicalWeight: 50,
+      satelliteWeight: 20
+    };
+
+    const baselineRisk = zone.risk;
+
+    // Transparent demo formula
+    const rainfallDelta = ((params.rainfall - baseline.rainfall) / 200) * 25;
+    const soilDelta = ((params.soilMoisture - baseline.soilMoisture) / 80) * 20;
+    const slopeDelta = ((params.slope - baseline.slope) / 50) * 20;
+    const historicalDelta = ((params.historicalWeight - baseline.historicalWeight) / 100) * 15;
+    const satelliteDelta = ((params.satelliteWeight - baseline.satelliteWeight) / 80) * 10;
+
+    const totalDelta = rainfallDelta + soilDelta + slopeDelta + historicalDelta + satelliteDelta;
+    const simulatedRisk = Math.max(0, Math.min(100, Math.round(baselineRisk + totalDelta)));
+
+    const getLevel = (score) => {
+      if (score >= 80) return 'WARNING';
+      if (score >= 60) return 'ALERT';
+      if (score >= 30) return 'WATCH';
+      return 'SAFE';
+    };
+
+    const contributions = {
+      rainfall: Math.round(rainfallDelta),
+      soil: Math.round(soilDelta),
+      slope: Math.round(slopeDelta),
+      historical: Math.round(historicalDelta),
+      satellite: Math.round(satelliteDelta)
+    };
+
+    // Generate projection data for chart
+    const projection = [];
+    const labels = ['Now', '+6h', '+12h', '+18h', '+24h'];
+    for (let i = 0; i < 5; i++) {
+      const progress = i / 4;
+      const riskAtStep = Math.max(0, Math.min(100, Math.round(baselineRisk + totalDelta * progress)));
+      projection.push({
+        label: labels[i],
+        risk: riskAtStep
+      });
+    }
+
+    return {
+      baseline: { risk: baselineRisk, level: getLevel(baselineRisk) },
+      simulated: { risk: simulatedRisk, level: getLevel(simulatedRisk) },
+      delta: Math.round(totalDelta),
+      contributions,
+      projection,
+      isDemo: true
+    };
+  },
   // ============================================================
   // LEGACY COMPATIBILITY
   // ============================================================

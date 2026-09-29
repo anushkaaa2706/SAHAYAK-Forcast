@@ -505,6 +505,7 @@
     }
 
     // ============ MINI MAP ============
+        // ============ MINI MAP ============
     function initMiniMap() {
         if (typeof L === 'undefined' || !state.zone) return;
 
@@ -513,25 +514,17 @@
         }
 
         // 100% Free, NO API KEY required (OpenStreetMap)
-const osmTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 19
-});
-
-state.miniMap = L.map('simMiniMap', {
-    center: [state.zone.lat, state.zone.lng],
-    zoom: 9,
-    zoomControl: false,
-    attributionControl: false,
-    layers: [osmTiles] // Yahan osmTiles use karo
-});
+        const osmTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+        });
 
         state.miniMap = L.map('simMiniMap', {
             center: [state.zone.lat, state.zone.lng],
             zoom: 9,
             zoomControl: false,
             attributionControl: false,
-            layers: [darkTiles]
+            layers: [osmTiles] // Sirf osmTiles use karo, darkTiles hata do
         });
 
         // Risk zone circle
