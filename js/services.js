@@ -2380,7 +2380,48 @@ async getRainfallMapData() {
           r => r.isDemo
         )
     };
-  }
+  },
+  async addUser(userData) {
+  await this._delay(100);
+
+  const storedUsers = SahayakState.get('users');
+
+  const users = Array.isArray(storedUsers)
+    ? storedUsers
+    : [...(DEMO_DATA.users || [])];
+
+  const newUser = {
+    id: 'USR-' + String(Date.now()).slice(-6),
+    name: userData.name,
+    email: userData.email,
+    phone: userData.phone || '',
+    password: userData.password,
+    role: userData.role,
+    region: userData.region || 'Northeast India',
+    district: userData.district || 'All',
+    status: userData.status || 'active',
+    lastActive: 'Just now',
+    incidents: 0
+  };
+
+  users.unshift(newUser);
+
+  SahayakState.set('users', users);
+
+  SahayakState.addNotification({
+    type: 'info',
+    icon: '👤',
+    title: 'New user created',
+    message: `${newUser.name} added as ${newUser.role.replace('_', ' ')}`,
+    timestamp: 'Just now',
+    read: false
+  });
+
+  return {
+    ...newUser,
+    isDemo: true
+  };
+}
 };
 
 

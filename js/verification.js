@@ -579,7 +579,7 @@ const item = all.find(v => v.id === itemId);
         center: [25.5, 92.5],
         zoom: 6,
         zoomControl: false,
-        layers: [L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        layers: [L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_42qq_1_21d4c2650629b0a07db22e1d', {
           attribution: '&copy; OSM &copy; CARTO',
           subdomains: 'abcd', maxZoom: 19
         })]
