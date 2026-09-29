@@ -4,34 +4,22 @@
     'use strict';
 
     // ============ STATE ============
-    const state = {
-        map: null,
-        riskLayer: null,
-        markers: {},
-        selectedZone: null,
-        isOffline: false,
-        notifications: [],
-        layers: {
-            risk: true,
-            historical: false,
-            rainfall: false,
-            soil: false,
-            slope: false,
-            elevation: false,
-            satellite: false,
-            villages: false,
-            population: false,
-            roads: false,
-            bridges: false,
-            schools: false,
-            hospitals: false,
-            police: false,
-            relief: false,
-            citizenReports: false,
-            fieldReports: false,
-            verified: false
-        }
-    };
+const state = {
+    map: null,
+    riskLayer: null,
+    markers: {},
+    selectedZone: null,
+    monitoringData: null,
+    riskZones: [],
+    isOffline: false,
+    notifications: [],
+    layers: {
+        risk: true,
+        rainfall: false,
+        terrain: false,
+        infrastructure: false
+    }
+};
 
     // ============ INITIALIZATION ============
    async function init() {
@@ -73,35 +61,45 @@
         document.getElementById('sidebarUserRole').textContent = displayRole;
     }
 
-    renderSidebar();
+renderSidebar();
 
-    renderMetrics();
+try {
+    state.riskZones = await Services.getAllRiskZones()
+    console.log('LIVE RISK ZONES:', state.riskZones);
+} catch (error) {
+    console.error('Failed to load live risk zones:', error);
+    state.riskZones = DEMO_DATA.riskZones || [];
+}
 
-    initMap();
+renderMetrics();
+initMap();
 
-    renderRiskZones();
+try {
+    state.riskZones = await Services.getAllRiskZones();
 
-    renderLocationPanelPlaceholder();
+    const location = state.riskZones[0]?.location || 'Tawang';
 
-    renderEnvironmentalCards();
+    state.monitoringData =
+        await Services.getMonitoringData(location);
 
-    renderAIExplanation();
+    console.log('LIVE RISK ZONES:', state.riskZones);
+    console.log('LIVE MONITORING DATA:', state.monitoringData);
 
-    renderRiskTrend();
+} catch (error) {
+    console.error('Dashboard live data error:', error);
+}
 
-    renderAlerts();
-
-    renderExposure();
-
-    renderFieldOperations();
-
-    renderDataFreshness();
-
-    renderQuickActions();
-
-    setupEventListeners();
-
-    await loadNotifications();
+renderRiskZones();
+renderLocationPanelPlaceholder();
+renderEnvironmentalCards();
+renderAIExplanation();
+renderAlerts();
+renderExposure();
+renderFieldOperations();
+renderDataFreshness();
+renderQuickActions();
+setupEventListeners();
+await loadNotifications();
 }
 
     // ============ SIDEBAR ============
@@ -125,42 +123,52 @@
     }
 
     // ============ METRICS ============
-    function renderMetrics() {
-        const grid = document.getElementById('metricsGrid');
-        if (!grid) return;
+function renderMetrics() {
+    const grid = document.getElementById('metricsGrid');
+    if (!grid) return;
 
-        const metrics = DEMO_DATA.metrics;
-        const cards = [
-            { key: 'criticalZones', label: 'Critical Zones', icon: 'alert-triangle', riskClass: 'risk-warning', statusClass: 'warning', status: 'WARNING' },
-            { key: 'highRiskZones', label: 'High Risk Zones', icon: 'alert-circle', riskClass: 'risk-alert', statusClass: 'alert', status: 'ALERT' },
-            { key: 'activeAlerts', label: 'Active Alerts', icon: 'bell', riskClass: '', statusClass: '' },
-            { key: 'fieldReports', label: 'Field Reports', icon: 'clipboard', riskClass: '', statusClass: '' },
-            { key: 'verifiedIncidents', label: 'Verified Incidents', icon: 'check-circle', riskClass: '', statusClass: '' },
-            { key: 'populationAtRisk', label: 'Population at Risk', icon: 'users', riskClass: '', statusClass: '' }
-        ];
+    // Sirf wahi zones count honge jinka score ML model se aaya hai
+    const live = state.riskZones.filter(z => z.isLive);
+    const hasLive = live.length > 0;
+    const total = state.riskZones.length;
 
-        grid.innerHTML = cards.map(card => {
-            const m = metrics[card.key];
-            const value = card.key === 'populationAtRisk' ? Utils.formatNumber(m.value) : m.value;
-            return `
-                <div class="metric-card ${card.riskClass}" data-metric="${card.key}">
-                    <div class="metric-header">
-                        <div class="metric-icon ${card.statusClass}">${getIcon(card.icon)}</div>
-                        ${card.status ? `<span class="metric-status ${card.statusClass}">${card.status}</span>` : ''}
-                    </div>
-                    <div class="metric-value">${value}</div>
-                    <div class="metric-label">${card.label}</div>
-                    <div class="metric-footer">
-                        <span class="metric-trend ${m.trendDir}">${m.trendDir === 'up' ? '↑' : '↓'} ${m.trend} since last</span>
-                        <span>${m.updated}</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
+    const warning = live.filter(z => z.level === 'WARNING');
+    const alert = live.filter(z => z.level === 'ALERT');
+    const atRiskPop = [...warning, ...alert]
+        .reduce((sum, z) => sum + Number(z.population || 0), 0);
 
-        // Animate count-up
-        animateMetricValues();
-    }
+    const fmt = v => hasLive ? v : '9';
+    const foot = hasLive
+        ? `of ${live.length} live zones`
+        : 'ML model unavailable';
+
+    const cards = [
+        { label: 'Critical Zones', icon: 'alert-triangle', riskClass: 'risk-warning', statusClass: 'warning', status: 'WARNING',
+          value: fmt(warning.length), foot },
+        { label: 'High Risk Zones', icon: 'alert-circle', riskClass: 'risk-alert', statusClass: 'alert', status: 'ALERT',
+          value: fmt(alert.length), foot },
+        { label: 'Active Alerts', icon: 'bell', value: '9', foot: 'No alert backend connected' },
+        { label: 'Field Reports', icon: 'clipboard', value: '5', foot: 'No report backend connected' },
+        { label: 'Verified Incidents', icon: 'check-circle', value: '2', foot: 'No verification backend connected' },
+        { label: 'Population at Risk', icon: 'users',
+          value: hasLive ? Utils.formatNumber(atRiskPop) : '1',
+          foot: 'Warning + Alert zones' }
+    ];
+
+    grid.innerHTML = cards.map(c => `
+        <div class="metric-card ${c.riskClass || ''}">
+            <div class="metric-header">
+                <div class="metric-icon ${c.statusClass || ''}">${getIcon(c.icon)}</div>
+                ${c.status ? `<span class="metric-status ${c.statusClass}">${c.status}</span>` : ''}
+            </div>
+            <div class="metric-value">${c.value}</div>
+            <div class="metric-label">${c.label}</div>
+            <div class="metric-footer"><span>${c.foot}</span></div>
+        </div>
+    `).join('');
+
+    animateMetricValues();
+}
 
     function animateMetricValues() {
         if (Utils.prefersReducedMotion()) return;
@@ -190,17 +198,20 @@
         }
 
     // Free OpenStreetMap tiles — no API key required
-    const darkTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19
-    });
+state.map = L.map('map', {
+    center: [25.5, 92.5],
+    zoom: 6,
+    zoomControl: false
+});
 
-        state.map = L.map('map', {
-            center: [25.5, 92.5],
-            zoom: 6,
-            zoomControl: false,
-            layers: [darkTiles]
-        });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(state.map);
+
+setTimeout(() => {
+    state.map.invalidateSize();
+}, 300);
 
         // Custom zoom control
         L.control.zoom({ position: 'topright' }).addTo(state.map);
@@ -209,56 +220,77 @@
         state.map.attributionControl.setPrefix('');
     }
 
-    function renderRiskZones() {
-        if (!state.map) return;
+function renderRiskZones() {
+    if (!state.map) return;
 
-        // Clear existing
-        if (state.riskLayer) {
-            state.map.removeLayer(state.riskLayer);
-        }
-        state.riskLayer = L.layerGroup().addTo(state.map);
+    // Clear existing risk layer
+    if (state.riskLayer) {
+        state.map.removeLayer(state.riskLayer);
+    }
 
-        DEMO_DATA.riskZones.forEach(zone => {
-            const level = zone.level.toLowerCase();
-            const color = DEMO_DATA.riskLevels[level]?.color || '#19B8C7';
+    state.riskLayer = L.layerGroup().addTo(state.map);
 
-            // Risk zone polygon (circle approximation)
-            const radius = 15000 + (zone.risk / 100) * 25000;
-            const polygon = L.circle([zone.lat, zone.lng], {
+    // Use zones loaded from Services.getAllRiskZones()
+    state.riskZones.forEach(zone => {
+
+        const level = (zone.level || 'moderate').toLowerCase();
+
+        const color =
+            DEMO_DATA.riskLevels[level]?.color || '#19B8C7';
+
+        const risk = Number(
+            zone.risk ?? zone.risk_score ?? 0
+        );
+
+        // Same radius logic as Risk Map
+        const radius = 15000 + (risk / 100) * 25000;
+
+        // Risk circle
+        const polygon = L.circle(
+            [zone.lat, zone.lng],
+            {
                 radius: radius,
                 color: color,
                 weight: 1.5,
                 fillColor: color,
-                fillOpacity: 0.15,
+                fillOpacity: 0.18,
                 className: 'risk-zone-polygon'
-            }).addTo(state.riskLayer);
+            }
+        ).addTo(state.riskLayer);
 
-            polygon.on('click', () => openLocationPanel(zone));
+        // Click → location details
+        polygon.on('click', () => openLocationPanel(zone));
 
-            // Marker
-            const pulseHtml = (level === 'warning' || level === 'alert')
+        // Risk number marker
+        const pulseHtml =
+            (level === 'warning' || level === 'alert')
                 ? `<div class="risk-marker-pulse"></div>`
                 : '';
 
-            const markerIcon = L.divIcon({
-                className: '',
-                html: `
-                    <div class="risk-marker ${level}" data-zone-id="${zone.id}">
-                        ${pulseHtml}
-                        <span style="position:relative;z-index:2;">${zone.risk}</span>
-                    </div>
-                `,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16]
-            });
-
-            const marker = L.marker([zone.lat, zone.lng], { icon: markerIcon })
-                .addTo(state.riskLayer)
-                .on('click', () => openLocationPanel(zone));
-
-            state.markers[zone.id] = marker;
+        const markerIcon = L.divIcon({
+            className: '',
+            html: `
+                <div class="risk-marker ${level}">
+                    ${pulseHtml}
+                    <span style="position:relative;z-index:2;">
+                        ${risk}
+                    </span>
+                </div>
+            `,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
         });
-    }
+
+        const marker = L.marker(
+            [zone.lat, zone.lng],
+            { icon: markerIcon }
+        )
+        .addTo(state.riskLayer)
+        .on('click', () => openLocationPanel(zone));
+
+        state.markers[zone.id] = marker;
+    });
+}
 
     // ============ LOCATION PANEL ============
     function openLocationPanel(zone) {
@@ -400,145 +432,175 @@
     }
 
     // ============ ENVIRONMENTAL CARDS ============
-    function renderEnvironmentalCards() {
-        const grid = document.getElementById('envGrid');
-        if (!grid) return;
+function renderEnvironmentalCards() {
+    const grid = document.getElementById('envGrid');
+    if (!grid) return;
 
-        const zone = state.selectedZone || DEMO_DATA.riskZones[0];
-        const cards = [
-            { icon: 'cloud-rain', value: `${zone.rainfall} mm`, label: '72h accumulation', status: 'high', statusLabel: 'Above threshold' },
-            { icon: 'droplet', value: `${zone.soilMoisture}%`, label: 'Current estimate', status: 'high', statusLabel: 'High' },
-            { icon: 'mountain', value: `${zone.slope}°`, label: 'Terrain', status: 'steep', statusLabel: 'Steep' },
-            { icon: 'satellite', value: zone.satelliteChange ? 'Change detected' : 'Stable', label: 'Latest observation', status: 'monitor', statusLabel: zone.satelliteChange ? 'Monitor' : 'Normal' }
-        ];
+    const data = state.monitoringData;
 
-        grid.innerHTML = cards.map(c => `
-            <div class="env-card">
-                <div class="env-card-header">
-                    <div class="env-card-icon">${getIcon(c.icon)}</div>
-                    <span class="env-card-status ${c.status}">${c.statusLabel}</span>
+    const rainfall = data?.rainfall || {};
+    const terrain = data?.terrain || {};
+
+    const rain72 = rainfall.h72 ?? '--';
+    const soil = terrain.soilMoisture ?? '--';
+    const slope = terrain.slope ?? '--';
+    const elevation = terrain.elevation ?? '--';
+
+    const cards = [
+        {
+            icon: 'cloud-rain',
+            value: `${rain72} mm`,
+            label: '72h accumulation',
+            status: rainfall.isDemo ? 'high' : 'live',
+            statusLabel: rainfall.isDemo ? 'DEMO' : 'LIVE'
+        },
+        {
+            icon: 'droplet',
+            value: `${soil}%`,
+            label: 'Current estimate',
+            status: terrain.isDemo ? 'high' : 'live',
+            statusLabel: terrain.isDemo ? 'DEMO' : 'LIVE'
+        },
+        {
+            icon: 'mountain',
+            value: `${slope}°`,
+            label: 'Terrain slope',
+            status: terrain.isDemo ? 'steep' : 'live',
+            statusLabel: terrain.isDemo ? 'DEMO' : 'LIVE'
+        },
+        {
+            icon: 'mountain',
+            value: `${elevation} m`,
+            label: 'Elevation',
+            status: terrain.isDemo ? 'monitor' : 'live',
+            statusLabel: terrain.isDemo ? 'DEMO' : 'LIVE'
+        }
+    ];
+
+    grid.innerHTML = cards.map(c => `
+        <div class="env-card">
+            <div class="env-card-header">
+                <div class="env-card-icon">
+                    ${getIcon(c.icon)}
                 </div>
-                <div class="env-card-value">${c.value}</div>
-                <div class="env-card-label">${c.label}</div>
+
+                <span class="env-card-status ${c.status}">
+                    ${c.statusLabel}
+                </span>
             </div>
-        `).join('');
-    }
+
+            <div class="env-card-value">
+                ${c.value}
+            </div>
+
+            <div class="env-card-label">
+                ${c.label}
+            </div>
+        </div>
+    `).join('');
+}
 
     // ============ AI EXPLANATION ============
-    function renderAIExplanation() {
-        const container = document.getElementById('aiExplanation');
-        if (!container) return;
+   function renderAIExplanation() {
+    const container = document.getElementById('aiExplanation');
+    if (!container) return;
 
-        const zone = state.selectedZone || DEMO_DATA.riskZones[0];
-        const barsHtml = zone.factors.map(f => {
-            const pct = (f.value / 40) * 100;
-            return `
-                <div class="ai-bar" style="--target-width: ${pct}%">
-                    <div class="ai-bar-label">${f.label}</div>
-                    <div class="ai-bar-track"><div class="ai-bar-fill"></div></div>
-                    <div class="ai-bar-value">+${f.value}</div>
-                </div>
-            `;
-        }).join('');
+    const zone =
+        state.selectedZone ||
+        state.riskZones.find(z => z.isLive) ||
+        state.riskZones[0];
 
+    if (!zone) {
         container.innerHTML = `
             <div class="ai-explanation">
                 <div class="ai-explanation-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     Why is this area high risk?
                 </div>
-                <div class="ai-bars">${barsHtml}</div>
                 <div class="ai-explanation-text">
-                    Risk increased because accumulated rainfall and soil moisture are elevated, while steep terrain and historical landslide patterns increase susceptibility.
-                </div>
-                <div class="ai-explanation-footer">
-                    <span>Illustrative SHAP-style explanation — DEMO</span>
-                    <a href="${ROUTES.riskAnalysis}">View Full Analysis →</a>
+                    Risk analysis data is currently unavailable.
                 </div>
             </div>
         `;
-
-        // Animate bars
-        setTimeout(() => {
-            container.querySelectorAll('.ai-bar').forEach((bar, i) => {
-                setTimeout(() => bar.classList.add('revealed'), i * 120);
-            });
-        }, 200);
+        return;
     }
 
-    // ============ RISK TREND ============
-    function renderRiskTrend() {
-        const container = document.getElementById('riskTrendChart');
-        if (!container) return;
+    const factors = Array.isArray(zone.factors)
+        ? zone.factors
+        : [];
 
-        const zone = state.selectedZone || DEMO_DATA.riskZones[0];
-        const data = zone.trend;
-        const labels = ['06:00', '09:00', '12:00', '15:00', '18:00'];
-        const delta = data[data.length - 1] - data[0];
+    const barsHtml = factors.map(f => {
+        const value = Number(f.value || 0);
+        const pct = Math.min(100, (value / 40) * 100);
 
-        // SVG chart
-        const width = 320;
-        const height = 100;
-        const padding = { top: 10, right: 10, bottom: 20, left: 30 };
-        const chartW = width - padding.left - padding.right;
-        const chartH = height - padding.top - padding.bottom;
-
-        const maxVal = Math.max(...data) * 1.1;
-        const minVal = 0;
-
-        const points = data.map((v, i) => {
-            const x = padding.left + (i / (data.length - 1)) * chartW;
-            const y = padding.top + chartH - ((v - minVal) / (maxVal - minVal)) * chartH;
-            return [x, y];
-        });
-
-        const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0]} ${p[1]}`).join(' ');
-        const areaD = pathD + ` L ${points[points.length - 1][0]} ${padding.top + chartH} L ${points[0][0]} ${padding.top + chartH} Z`;
-
-        // Grid lines
-        const gridLines = [0, 25, 50, 75, 100].map(v => {
-            const y = padding.top + chartH - (v / maxVal) * chartH;
-            return `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="#E5EAF2" stroke-width="0.5" stroke-dasharray="2,2"/>
-                    <text x="${padding.left - 4}" y="${y + 3}" text-anchor="end" font-size="9" fill="#8A9BB5">${v}</text>`;
-        }).join('');
-
-        // X labels
-        const xLabels = labels.map((l, i) => {
-            const x = padding.left + (i / (labels.length - 1)) * chartW;
-            return `<text x="${x}" y="${height - 4}" text-anchor="middle" font-size="9" fill="#8A9BB5">${l}</text>`;
-        }).join('');
-
-        // Dots
-        const dots = points.map((p, i) =>
-            `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="#19B8C7" stroke="#fff" stroke-width="1.5"/>`
-        ).join('');
-
-        container.innerHTML = `
-            <div class="risk-trend-card">
-                <div class="risk-trend-header">
-                    <div>
-                        <div class="risk-trend-title">Risk Trend</div>
-                        <div class="risk-trend-subtitle">${zone.location} · Last 12 hours</div>
-                    </div>
-                    <div class="risk-trend-delta">↑ +${delta} points</div>
+        return `
+            <div class="ai-bar" style="--target-width: ${pct}%">
+                <div class="ai-bar-label">
+                    ${f.label}
                 </div>
-                <svg class="risk-trend-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-                    <defs>
-                        <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#19B8C7" stop-opacity="0.3"/>
-                            <stop offset="100%" stop-color="#19B8C7" stop-opacity="0"/>
-                        </linearGradient>
-                    </defs>
-                    ${gridLines}
-                    <path d="${areaD}" fill="url(#trendGrad)"/>
-                    <path d="${pathD}" fill="none" stroke="#19B8C7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    ${dots}
-                    ${xLabels}
+
+                <div class="ai-bar-track">
+                    <div class="ai-bar-fill"></div>
+                </div>
+
+                <div class="ai-bar-value">
+                    ${value > 0 ? '+' : ''}${value}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="ai-explanation">
+
+            <div class="ai-explanation-title">
+                <svg viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="2"
+                     stroke-linecap="round"
+                     stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
-                <div class="risk-trend-footer">Illustrative Demo Data</div>
+
+                Why is this area high risk?
             </div>
-        `;
-    }
+
+            <div class="ai-bars">
+                ${barsHtml}
+            </div>
+
+            <div class="ai-explanation-text">
+                Risk factors shown above are generated from the
+                current ML risk-score response for this location.
+            </div>
+
+            <div class="ai-explanation-footer">
+
+                <span>
+                    ${zone.isLive
+                        ? 'Live ML model explanation'
+                        : 'Demo explanation'}
+                </span>
+
+                <a href="${ROUTES.riskAnalysis}">
+                    View Full Analysis →
+                </a>
+
+            </div>
+
+        </div>
+    `;
+
+    setTimeout(() => {
+        container.querySelectorAll('.ai-bar').forEach((bar, i) => {
+            setTimeout(() => {
+                bar.classList.add('revealed');
+            }, i * 120);
+        });
+    }, 200);
+}
 
     // ============ ALERTS ============
     function renderAlerts() {

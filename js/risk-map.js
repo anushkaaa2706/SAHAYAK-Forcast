@@ -125,7 +125,6 @@
     // ============ MAP INITIALIZATION ============
     function initializeMap() {
       if (typeof L === 'undefined') {
-        console.warn('Leaflet not loaded');
         return;
       }
   

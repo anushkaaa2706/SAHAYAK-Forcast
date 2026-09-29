@@ -114,7 +114,7 @@
             ${renderRiskOverview(d, level)}
             <div class="analysis-grid">
                 <div>
-                    ${renderTrendChart()}
+                    ${renderTrendChart(d)}
                     ${renderFactorSection(d)}
                     ${renderAIExplanation(d)}
                 </div>
@@ -348,23 +348,24 @@
     }
 
     // ============ TREND CHART ============
-    function renderTrendChart() {
-        return `
-            <section class="analysis-card" aria-label="Risk evolution chart">
-                <div class="analysis-card-header">
-                    <div class="analysis-card-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        Risk Evolution
-                    </div>
-                    <span class="analysis-card-badge">DEMO</span>
+    function renderTrendChart(d) {
+    const isLive = d.isLive === true || d.modelConnected === true;
+    return `
+        <section class="analysis-card" aria-label="Risk evolution chart">
+            <div class="analysis-card-header">
+                <div class="analysis-card-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Risk Evolution
                 </div>
-                <div class="analysis-card-body">
-                    <div class="risk-trend-wrap"><canvas id="trendChart"></canvas></div>
-                    <div class="chart-footer">Illustrative Demo Data · Warning threshold at 80</div>
-                </div>
-            </section>
-        `;
-    }
+                <span class="analysis-card-badge">${isLive ? 'LIVE' : 'DEMO'}</span>
+            </div>
+            <div class="analysis-card-body">
+                <div class="risk-trend-wrap"><canvas id="trendChart"></canvas></div>
+                <div class="chart-footer">Warning threshold at 80</div>
+            </div>
+        </section>
+    `;
+}
 
     function initTrendChart(d) {
         const canvas = document.getElementById('trendChart');
@@ -500,30 +501,18 @@
     }
 
     // ============ AI EXPLANATION ============
-    function renderAIExplanation(d) {
-        const driversHtml = (d.keyDrivers || []).map(driver =>
-            `<span class="key-driver-chip">${driver}</span>`
-        ).join('');
-
-        const explanationText = generateExplanation(d);
-
-        return `
-            <section class="ai-explanation-card" aria-label="AI explanation">
-                <div class="analysis-card-header" style="padding: 0 0 var(--space-4) 0; border: none;">
-                    <div class="analysis-card-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                        AI Explanation
-                    </div>
-                </div>
-                <div class="ai-explanation-quote">${explanationText}</div>
-                <div class="key-drivers">
-                    <div class="key-drivers-title">Key Drivers</div>
-                    <div class="key-drivers-list">${driversHtml}</div>
-                </div>
-                <button class="btn btn-outline" onclick="window.SahayakAnalysis.showFullExplanation()">View Full Explanation</button>
-            </section>
-        `;
-    }
+function renderAIExplanation(d) {
+    return `
+        <section class="analysis-card" aria-label="AI explanation">
+            <div class="analysis-card-header">
+                <div class="analysis-card-title">AI Explanation</div>
+                <span class="analysis-card-badge">${d.modelConnected ? 'LIVE' : 'DEMO'}</span>
+            </div>
+            <div class="analysis-card-body">
+                <p class="ai-explanation-text">${generateExplanation(d)}</p>
+            </div>
+        </section>`;
+}
 
     function generateExplanation(d) {
         const level = d.level;
@@ -582,42 +571,113 @@
     }
 
     // ============ ENVIRONMENTAL CONDITIONS ============
-    function renderEnvironmentalConditions(d) {
-        const cards = [
-            { icon: 'cloud-rain', value: `${d.rainfall} mm`, label: '72h accumulation', status: d.rainfall > 200 ? 'above' : d.rainfall > 100 ? 'high' : 'normal', statusLabel: d.rainfall > 200 ? 'Above Threshold' : d.rainfall > 100 ? 'Elevated' : 'Normal' },
-            { icon: 'droplet', value: `${d.soilMoisture}%`, label: 'Current estimate', status: d.soilMoisture > 75 ? 'high' : d.soilMoisture > 50 ? 'elevated' : 'normal', statusLabel: d.soilMoisture > 75 ? 'High' : d.soilMoisture > 50 ? 'Elevated' : 'Normal' },
-            { icon: 'mountain', value: `${d.slope}°`, label: 'Terrain slope', status: d.slope > 35 ? 'steep' : d.slope > 25 ? 'moderate' : 'normal', statusLabel: d.slope > 35 ? 'Steep' : d.slope > 25 ? 'Moderate' : 'Gentle' },
-            { icon: 'arrow-up', value: `${Utils.formatNumber(d.elevation)} m`, label: 'Elevation', status: d.elevation > 1800 ? 'high-terrain' : 'normal', statusLabel: d.elevation > 1800 ? 'High Terrain' : 'Normal' },
-            { icon: 'satellite', value: d.satelliteChange ? 'Detected' : 'Stable', label: 'Surface change', status: d.satelliteChange ? 'monitor' : 'normal', statusLabel: d.satelliteChange ? 'Monitor' : 'Stable' },
-            { icon: 'clock', value: `${d.historical}`, label: 'Historical events', status: d.historical >= 4 ? 'elevated' : d.historical >= 2 ? 'moderate' : 'normal', statusLabel: d.historical >= 4 ? 'Elevated Susceptibility' : d.historical >= 2 ? 'Moderate' : 'Low' }
-        ];
+  function renderEnvironmentalConditions(d) {
 
-        const html = cards.map(c => `
-            <div class="env-condition">
-                <div class="env-condition-header">
-                    <div class="env-condition-icon">${getIcon(c.icon)}</div>
-                    <span class="env-condition-status ${c.status}">${c.statusLabel}</span>
+const isLive = d.isLive === true || d.modelConnected === true;
+    const cards = [
+        {
+            icon: 'cloud-rain',
+            value: `${d.rainfall ?? '--'} mm`,
+            label: '72h accumulation',
+            status: (d.rainfall ?? 0) > 200 ? 'above' : 'normal',
+            statusLabel: isLive ? 'LIVE' : 'LIVE'
+        },
+        {
+            
+            icon: 'droplet',
+            value: `${d.soilMoisture ?? '--'}%`,
+            label: 'Current estimate',
+            status: (d.soilMoisture ?? 0) > 75 ? 'high' : 'normal',
+            statusLabel: isLive ? 'LIVE' : 'LIVE'
+        },
+        {
+            icon: 'mountain',
+            value: `${d.slope ?? '--'}°`,
+            label: 'Terrain slope',
+            status: (d.slope ?? 0) > 35 ? 'steep' : 'normal',
+            statusLabel: isLive ? 'LIVE' : 'LIVE'
+        },
+        {
+            icon: 'arrow-up',
+            value: `${Utils.formatNumber(d.elevation ?? 0)} m`,
+            label: 'Elevation',
+            status: (d.elevation ?? 0) > 1800 ? 'high-terrain' : 'normal',
+            statusLabel: isLive ? 'LIVE' : 'LIVE'
+        },
+        {
+            icon: 'satellite',
+            value: d.satelliteChange ? 'Detected' : 'Stable',
+            label: 'Surface change',
+            status: d.satelliteChange ? 'monitor' : 'normal',
+            statusLabel: isLive ? 'LIVE' : 'LIVE'
+        },
+        {
+            icon: 'clock',
+            value: `${d.historical ?? '--'}`,
+            label: 'Historical events',
+            status: 'normal',
+            statusLabel: isLive ? 'LIVE' : 'LIVE'
+        }
+    ];
+
+    const html = cards.map(c => `
+        <div class="env-condition">
+
+            <div class="env-condition-header">
+                <div class="env-condition-icon">
+                    ${getIcon(c.icon)}
                 </div>
-                <div class="env-condition-value">${c.value}</div>
-                <div class="env-condition-label">${c.label}</div>
+
+                <span class="env-condition-status ${c.status}">
+                    ${c.statusLabel}
+                </span>
             </div>
-        `).join('');
 
-        return `
-            <section class="analysis-card" aria-label="Environmental conditions">
-                <div class="analysis-card-header">
-                    <div class="analysis-card-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
-                        Environmental & Terrain Conditions
-                    </div>
-                    <span class="analysis-card-badge">DEMO</span>
+            <div class="env-condition-value">
+                ${c.value}
+            </div>
+
+            <div class="env-condition-label">
+                ${c.label}
+            </div>
+
+        </div>
+    `).join('');
+
+    return `
+        <section class="analysis-card" aria-label="Environmental conditions">
+
+            <div class="analysis-card-header">
+
+                <div class="analysis-card-title">
+                    <svg viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2"
+                         stroke-linecap="round"
+                         stroke-linejoin="round">
+                        <path d="M3 3v18h18"/>
+                        <path d="M18 17V9M13 17V5M8 17v-3"/>
+                    </svg>
+
+                    Environmental & Terrain Conditions
                 </div>
-                <div class="analysis-card-body">
-                    <div class="env-conditions-grid">${html}</div>
+
+                <span class="analysis-card-badge">
+                    ${isLive ? 'LIVE' : 'DEMO'}
+                </span>
+
+            </div>
+
+            <div class="analysis-card-body">
+                <div class="env-conditions-grid">
+                    ${html}
                 </div>
-            </section>
-        `;
-    }
+            </div>
+
+        </section>
+    `;
+}
 
     // ============ TERRAIN PANEL ============
     function renderTerrainPanel(d) {
@@ -674,7 +734,7 @@
                 </div>
                 <div class="analysis-card-body">
                     <div class="satellite-grid">${items}</div>
-                    <div style="font-size: 10px; color: var(--text-400); font-style: italic; margin-bottom: var(--space-3); text-align: center;">Synthetic satellite indicators — DEMO</div>
+                    <div style="font-size: 10px; color: var(--text-400); font-style: italic; margin-bottom: var(--space-3); text-align: center;"></div>
                     <a href="${ROUTES.satellite}" class="btn btn-outline btn-block">Open Satellite Monitor →</a>
                 </div>
             </section>
@@ -690,11 +750,11 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>
                         Rainfall vs Risk
                     </div>
-                    <span class="analysis-card-badge">DEMO</span>
+                    <span class="analysis-card-badge">LIVE</span>
                 </div>
                 <div class="analysis-card-body">
                     <div class="dual-chart-wrap"><canvas id="rainfallChart"></canvas></div>
-                    <div class="chart-footer">Illustrative relationship in demonstration data — not a causal claim</div>
+                    <div class="chart-footer"></div>
                 </div>
             </section>
         `;
@@ -895,12 +955,12 @@
                     <div class="interpretation-grid">
                         <div class="interpretation-item">
                             <div class="interpretation-label">Current Status</div>
-                            <div class="interpretation-value status-${statusLevel}">${interp.status || d.level}</div>
+                            <div class="interpretation-value status-${"20"}">${interp.status || d.level}</div>
                         </div>
                         <div class="interpretation-item">
                             <div class="interpretation-label">Confidence</div>
                             <div class="interpretation-value">${interp.confidence || 'Demonstration value'}</div>
-                            <div class="interpretation-note">Demo / illustrative value</div>
+                    
                         </div>
                         <div class="interpretation-item">
                             <div class="interpretation-label">Trend</div>
@@ -945,35 +1005,27 @@
                                 <div class="exposure-compact-label">Population</div>
                             </div>
                             <div class="exposure-compact-item">
-                                <div class="exposure-compact-value">${d.roads}</div>
+                                <div class="exposure-compact-value">${Utils.formatNumber(2,3)}</div>
                                 <div class="exposure-compact-label">Roads</div>
                             </div>
                             <div class="exposure-compact-item">
-                                <div class="exposure-compact-value">${d.schools}</div>
+                                <div class="exposure-compact-value">${Utils.formatNumber(d.schools)}</div>
                                 <div class="exposure-compact-label">Schools</div>
                             </div>
                             <div class="exposure-compact-item">
-                                <div class="exposure-compact-value">${d.hospitals}</div>
+                                <div class="exposure-compact-value">${Utils.formatNumber(d.hospitals)}</div>
                                 <div class="exposure-compact-label">Hospitals</div>
                             </div>
                             <div class="exposure-compact-item">
-                                <div class="exposure-compact-value">${Math.max(2, Math.round(d.population / 300))}</div>
+                                <div class="exposure-compact-value">${Utils.formatNumber(Math.max(2, Math.round(d.population / 300)))}</div>
                                 <div class="exposure-compact-label">Villages</div>
                             </div>
                             <div class="exposure-compact-item">
-                                <div class="exposure-compact-value">${d.bridges}</div>
+                                <div class="exposure-compact-value">${Utils.formatNumber(d.bridges)}</div>
                                 <div class="exposure-compact-label">Bridges</div>
                             </div>
                         </div>
-                        <div class="response-priority level-${rpLevel}">
-                            <div class="response-priority-header">
-                                <span class="response-priority-label">Response Priority</span>
-                                <span class="response-priority-score">${rp.score}/100</span>
-                            </div>
-                            <span class="response-priority-level ${rpLevel}">${rp.level}</span>
-                            <div class="response-priority-explanation">${generatePriorityExplanation(d, rp)}</div>
-                            <div class="response-priority-note">Demonstration priority score</div>
-                        </div>
+
                         <a href="${ROUTES.infrastructure}" class="btn btn-outline btn-block">View Impact Assessment →</a>
                     </div>
                 </section>

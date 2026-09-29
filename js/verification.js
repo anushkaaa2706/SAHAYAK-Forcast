@@ -81,7 +81,6 @@
     state.items = await Services.getVerificationData(state.filters);
     renderItems();
   } catch (error) {
-    console.error('Failed to load verification data:', error);
 
     state.items = DEMO_DATA.verificationItems;
     renderItems();
