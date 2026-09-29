@@ -903,7 +903,6 @@ const DEMO_DATA = {
         {
             label: 'IMPACT & RESPONSE',
             items: [
-                { key: 'infrastructure', label: 'Infrastructure', icon: 'building' },
                 { key: 'routeRisk', label: 'Route Risk', icon: 'route' },
                 { key: 'simulator', label: 'Simulator', icon: 'sliders' }
             ]

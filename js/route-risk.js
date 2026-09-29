@@ -223,13 +223,14 @@
             </div>
 
             <!-- Alternative Route -->
+            ${alt ? `
             <div class="alternative-card">
                 <div class="alternative-header">
                     <div class="alternative-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                         Alternative Route
                     </div>
-                    <span class="route-result-badge alternative">SAFER OPTION</span>
+                    <span class="route-result-badge alternative">LIVE ALTERNATIVE</span>
                 </div>
                 <div class="alternative-body">
                     <div class="route-name">${alt.name}</div>
@@ -238,21 +239,21 @@
                             <div class="alternative-stat-label">Risk Score</div>
                             <div class="alternative-stat-value" style="color: var(--${aLevel === 'safe' ? 'safe' : aLevel === 'watch' ? 'watch' : aLevel === 'high' ? 'alert' : 'warning'});">${alt.overallRisk}/100</div>
                             <div class="alternative-stat-sub ${alt.overallRisk < primary.overallRisk ? 'positive' : 'negative'}">
-                                ${alt.overallRisk < primary.overallRisk ? '↓ Lower risk' : '↑ Higher risk'}
+                                ${alt.overallRisk < primary.overallRisk ? '↓ Lower modeled risk' : '↑ Higher modeled risk'}
                             </div>
                         </div>
                         <div class="alternative-stat">
                             <div class="alternative-stat-label">Distance</div>
                             <div class="alternative-stat-value">${alt.distance} km</div>
                             <div class="alternative-stat-sub ${alt.distance > primary.distance ? 'negative' : 'positive'}">
-                                ${alt.distance > primary.distance ? `+${alt.distance - primary.distance} km` : `${primary.distance - alt.distance} km shorter`}
+                                ${alt.distance > primary.distance ? `+${(alt.distance - primary.distance).toFixed(1)} km` : `${(primary.distance - alt.distance).toFixed(1)} km shorter`}
                             </div>
                         </div>
                         <div class="alternative-stat">
                             <div class="alternative-stat-label">Est. Time</div>
                             <div class="alternative-stat-value">${formatTime(alt.time)}</div>
                             <div class="alternative-stat-sub ${additionalTime > 0 ? 'negative' : 'positive'}">
-                                ${additionalTime > 0 ? `+${additionalTime} min` : `${-additionalTime} min faster`}
+                                ${additionalTime > 0 ? `+${additionalTime} min` : `${Math.abs(additionalTime)} min faster`}
                             </div>
                         </div>
                         <div class="alternative-stat">
@@ -271,7 +272,16 @@
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>` : `
+            <div class="alternative-card">
+                <div class="alternative-header">
+                    <div class="alternative-title">Live Route Alternatives</div>
+                    <span class="route-result-badge alternative">NOT RETURNED</span>
+                </div>
+                <div class="alternative-body">
+                    <div class="alternative-stat-sub">The live routing service returned only one road route for this request. No synthetic alternative has been created.</div>
+                </div>
+            </div>`}
 
             <!-- Risk Explanation -->
             <div class="route-explanation">
@@ -295,7 +305,7 @@
                 <div class="route-explanation-quote">
                     ${generateExplanation(routeData)}
                 </div>
-                <div class="route-explanation-note">Illustrative risk analysis — DEMO</div>
+                <div class="route-explanation-note">Derived from the live SAHAYAK risk model and current route data.</div>
             </div>
 
             <!-- Activity -->
@@ -345,86 +355,59 @@
     function drawRoute(routeData) {
         if (!state.map) return;
 
-        // Clear existing
         clearMapLayers();
 
         const primary = routeData.primary;
         const alt = routeData.alternative;
 
-        // Draw primary route segments
-        primary.segments.forEach((seg, i) => {
-            const startIdx = i;
-            const endIdx = i + 1;
-            if (endIdx >= primary.waypoints.length) return;
+        const drawRouteSegments = (route, bucket, opacity, weight, dashArray) => {
+            if (!route) return;
+            route.segments.forEach(seg => {
+                if (!Array.isArray(seg.geometry) || seg.geometry.length < 2) return;
+                const latlngs = seg.geometry.map(p => [p[0], p[1]]);
+                const polyline = L.polyline(latlngs, {
+                    color: getRiskColor(seg.level),
+                    weight,
+                    opacity,
+                    dashArray,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                }).addTo(state.map);
+                polyline.on('click', () => selectSegment(seg.id, bucket === 'alternative'));
+                state.polylines[bucket].push(polyline);
+            });
+        };
 
-            const latlngs = [
-                primary.waypoints[startIdx],
-                primary.waypoints[endIdx]
-            ];
+        drawRouteSegments(primary, 'primary', 0.95, 7, null);
+        drawRouteSegments(alt, 'alternative', state.showAlternative ? 0.78 : 0.32, 4, state.showAlternative ? null : '8, 8');
 
-            const color = getRiskColor(seg.level);
-            const polyline = L.polyline(latlngs, {
-                color: color,
-                weight: 6,
-                opacity: 0.9,
-                lineCap: 'round'
-            }).addTo(state.map);
+        const startPoint = routeData.startCoordinates || primary.waypoints[0];
+        const destPoint = routeData.destinationCoordinates || primary.waypoints[primary.waypoints.length - 1];
 
-            polyline.on('click', () => selectSegment(seg.id));
-            state.polylines.primary.push(polyline);
-        });
-
-        // Draw alternative route (initially hidden or muted)
-        alt.segments.forEach((seg, i) => {
-            const startIdx = i;
-            const endIdx = i + 1;
-            if (endIdx >= alt.waypoints.length) return;
-
-            const latlngs = [
-                alt.waypoints[startIdx],
-                alt.waypoints[endIdx]
-            ];
-
-            const color = getRiskColor(seg.level);
-            const polyline = L.polyline(latlngs, {
-                color: color,
-                weight: 4,
-                opacity: state.showAlternative ? 0.8 : 0.3,
-                dashArray: state.showAlternative ? null : '8, 8',
-                lineCap: 'round'
-            }).addTo(state.map);
-
-            polyline.on('click', () => selectSegment(seg.id, true));
-            state.polylines.alternative.push(polyline);
-        });
-
-        // Start marker
         const startIcon = L.divIcon({
             className: '',
             html: `<div class="route-marker start">A</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         });
-        L.marker(primary.waypoints[0], { icon: startIcon })
-            .addTo(state.map)
+        L.marker(startPoint, { icon: startIcon }).addTo(state.map)
             .bindPopup(`<strong>Start:</strong> ${routeData.start}`);
 
-        // Destination marker
         const destIcon = L.divIcon({
             className: '',
             html: `<div class="route-marker destination">B</div>`,
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         });
-        L.marker(primary.waypoints[primary.waypoints.length - 1], { icon: destIcon })
-            .addTo(state.map)
+        L.marker(destPoint, { icon: destIcon }).addTo(state.map)
             .bindPopup(`<strong>Destination:</strong> ${routeData.destination}`);
 
-        // Fit bounds
-        const allPoints = [...primary.waypoints, ...alt.waypoints];
-        state.map.fitBounds(allPoints, { padding: [50, 50] });
+        const boundsPoints = [];
+        [primary, alt].filter(Boolean).forEach(route => {
+            (route.waypoints || []).forEach(p => boundsPoints.push(p));
+        });
+        if (boundsPoints.length) state.map.fitBounds(boundsPoints, { padding: [50, 50] });
 
-        // Hide empty state
         const empty = document.querySelector('.route-map-empty');
         if (empty) empty.style.display = 'none';
     }
@@ -498,7 +481,7 @@
             <div class="segment-popup-reason">
                 <strong>Reason:</strong> ${segment.reason}
             </div>
-            <div class="segment-popup-demo">DEMO DATA</div>
+            <div class="segment-popup-demo">LIVE MODEL · ${segment.source || 'SAHAYAK risk model'}</div>
         `;
 
         popup.classList.add('active');
@@ -524,7 +507,7 @@
     }
 
     function useAlternative() {
-        if (!state.currentRoute) return;
+        if (!state.currentRoute || !state.currentRoute.alternative) return;
 
         // Swap primary and alternative
         const temp = state.currentRoute.primary;

@@ -61,7 +61,6 @@ const Services = {
   // ============================================================
   /// Fetch JSON with timeout and error handling
   async _fetchJSON(url, options = {}) {
-    console.log("🌐 API REQUEST STARTED:", url);
 
     const controller = new AbortController();
 
@@ -70,7 +69,7 @@ const Services = {
     }, options.timeout || 10000);
 
     try {
-      console.log("📡 Sending fetch request...");
+    
 
       const response = await fetch(url, {
         ...options,
@@ -81,11 +80,6 @@ const Services = {
         }
       });
 
-      console.log("📥 API RESPONSE:", {
-        url: url,
-        status: response.status,
-        ok: response.ok
-      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -93,16 +87,10 @@ const Services = {
 
       const data = await response.json();
 
-      console.log("✅ API DATA RECEIVED:", data);
-
       return data;
 
     } catch (error) {
 
-      console.error("❌ API REQUEST ERROR:", {
-        url: url,
-        error: error
-      });
 
       throw error;
 
@@ -115,7 +103,6 @@ const Services = {
     try {
       return await this._fetchJSON(url, options);
     } catch (error) {
-      console.warn('API request failed:', url, error);
       return fallback;
     }
   },
@@ -967,11 +954,6 @@ async getAllRiskZones() {
 
     } catch (rainfallError) {
 
-      console.warn(
-        'Rainfall data unavailable:',
-        rainfallError
-      );
-
     }
 
     const rainfallTotal = rainfall.reduce(
@@ -1036,8 +1018,7 @@ async getAllRiskZones() {
     // ============================================================
 
     return {
-
-      // Keep existing location information.
+// Keep existing location information.
       ...zone,
 
       // ----------------------------------------------------------
@@ -1069,9 +1050,7 @@ async getAllRiskZones() {
       // ----------------------------------------------------------
 
       modelFactors,
-
       factors,
-
       keyDrivers,
 
       // ----------------------------------------------------------
@@ -1084,15 +1063,35 @@ async getAllRiskZones() {
         ) / 10,
 
       // ----------------------------------------------------------
+      // LIVE ENVIRONMENT + TERRAIN
+      // ----------------------------------------------------------
+
+      rainfall: liveRainfall,
+
+      soilMoisture: liveSoilMoisture,
+
+      slope: liveSlope,
+
+      elevation: liveElevation,
+
+      aspect: liveAspect,
+
+      stability: liveStability,
+
+      environmentLive:
+        monitoring?.rainfall?.isDemo === false,
+
+      terrainLive:
+        monitoring?.terrain?.isDemo === false,
+
+      // ----------------------------------------------------------
       // TIMESTAMP
       // ----------------------------------------------------------
 
       timestamp:
         new Date().toISOString(),
 
-      // This is now a real model result.
       isDemo: false
-
     };
   },
 

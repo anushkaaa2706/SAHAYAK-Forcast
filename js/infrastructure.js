@@ -112,9 +112,13 @@
     function renderAll() {
         const main = document.getElementById('infraContent');
         if (!main) return;
+        const d = state.data || {};
 
-        const d = state.data;
-        const zone = DEMO_DATA.riskZones.find(z => z.location === state.currentLocation);
+        const liveRisk = d.risk;
+
+        const zone = DEMO_DATA.riskZones.find(
+           z => z.location === state.currentLocation
+);
         const level = zone.level.toLowerCase();
 
         // Update breadcrumb
