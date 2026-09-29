@@ -1341,29 +1341,60 @@ async getAllRiskZones() {
       isDemo: true
     };
   },
-
-
-  // ============================================================
-  // INFRASTRUCTURE
+    // ============================================================
+  // INFRASTRUCTURE (DEBUG VERSION)
   // ============================================================
 
   async getInfrastructure(locationName = 'Tawang') {
+    console.log("🏗️ [DEBUG] getInfrastructure called for:", locationName);
+    
+    // 1. Try to find zone in DEMO_DATA first
+    let zone = this._findZone(locationName);
+    console.log("🔍 [DEBUG] Zone found in DEMO_DATA:", zone ? zone.location : "NO");
+    
+    // 2. If zone not found, try to get coordinates from Geocoding API
+    let coords = null;
+    if (!zone) {
+      console.log("⏳ [DEBUG] Resolving coordinates via API...");
+      coords = await this._resolveCoordinates(locationName);
+      console.log("📍 [DEBUG] Coordinates resolved:", coords);
+      
+      if (!coords) {
+        console.log("⚠️ [DEBUG] API failed, falling back to Tawang");
+        zone = this._findZone('Tawang');
+      }
+    }
 
-    const zone = this._findZone(locationName);
+    // 3. If we have coords but no zone, create a minimal zone object
+    if (!zone && coords) {
+      console.log("🛠️ [DEBUG] Creating auto-generated zone object");
+      zone = {
+        id: 'auto-generated',
+        location: locationName,
+        state: coords.state || 'Unknown',
+        lat: coords.lat,
+        lng: coords.lng,
+        risk: 50,
+        level: 'WATCH'
+      };
+    }
 
     if (!zone) {
+      console.error("❌ [DEBUG] CRITICAL: No zone and no fallback available!");
       return {
         error: 'Location not found',
+        infrastructure: [],
         isDemo: true
       };
     }
 
     let infrastructure = zone.infrastructure;
+    console.log("📦 [DEBUG] Raw infrastructure data from zone:", infrastructure);
 
-    if (!infrastructure) {
-
+    // 4. Generate demo infrastructure if none exists
+    if (!infrastructure || !Array.isArray(infrastructure)) {
+      console.log("⚙️ [DEBUG] Generating fallback demo infrastructure");
       infrastructure = [
-
         {
           id: 'INF-AUTO-001',
           type: 'hospital',
@@ -1374,7 +1405,6 @@ async getAllRiskZones() {
           lng: zone.lng - 0.005,
           capacity: 40
         },
-
         {
           id: 'INF-AUTO-002',
           type: 'school',
@@ -1385,7 +1415,6 @@ async getAllRiskZones() {
           lng: zone.lng + 0.004,
           capacity: 280
         },
-
         {
           id: 'INF-AUTO-003',
           type: 'bridge',
@@ -1398,14 +1427,17 @@ async getAllRiskZones() {
       ];
     }
 
-    return {
+    const finalResult = {
       location: locationName,
       infrastructure,
       isDemo: true
     };
+    
+    console.log("✅ [DEBUG] getInfrastructure returning successfully:", finalResult);
+    return finalResult;
   },
 
-
+  
   // ============================================================
   // ROADS
   // ============================================================
@@ -2315,6 +2347,69 @@ async getAllRiskZones() {
       },
       {}
     );
+  },
+
+    // ============================================================
+  // EXPOSURE ACTIVITY (NEW)
+  // ============================================================
+
+  async getExposureActivity(locationName = 'Tawang') {
+    await this._delay(50);
+
+    // Generate demo activity data
+    const activities = [
+      {
+        id: 'ACT-001',
+        type: 'inspection',
+        icon: '🔍',
+        title: 'Infrastructure inspection completed',
+        location: locationName,
+        time: '2 hours ago',
+        officer: 'Rajesh Kumar'
+      },
+      {
+        id: 'ACT-002',
+        type: 'assessment',
+        icon: '📊',
+        title: 'Population exposure assessment updated',
+        location: locationName,
+        time: '5 hours ago',
+        officer: 'System'
+      },
+      {
+        id: 'ACT-003',
+        type: 'verification',
+        icon: '✓',
+        title: 'Road segment verified - operational',
+        location: locationName,
+        time: '1 day ago',
+        officer: 'Priya Sharma'
+      },
+      {
+        id: 'ACT-004',
+        type: 'alert',
+        icon: '⚠',
+        title: 'Risk level updated to WATCH',
+        location: locationName,
+        time: '1 day ago',
+        officer: 'AI System'
+      },
+      {
+        id: 'ACT-005',
+        type: 'report',
+        icon: '📝',
+        title: 'Field report submitted',
+        location: locationName,
+        time: '2 days ago',
+        officer: 'Amit Singh'
+      }
+    ];
+
+    return {
+      location: locationName,
+      activity: activities,
+      isDemo: true
+    };
   },
   // ADD THESE 3 methods inside "const Services = { ... }" in services.js
 // (paste anywhere inside the object, e.g. right after getMetrics())
