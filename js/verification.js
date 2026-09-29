@@ -681,14 +681,13 @@ const items = (Array.isArray(storedItems) && storedItems.length > 0
     return;
   }
 
-  await Services.verifyPrediction(id);
+  await Services.verifyFieldReport(id, 'verify');
 
   showToast(
     'success',
     '✓',
     'Prediction verified successfully',
     `${id} — field evidence confirmed`,
-    'DEMO'
   );
 
   await refreshAll();
@@ -718,14 +717,13 @@ const items = (Array.isArray(storedItems) && storedItems.length > 0
     return;
   }
 
-  await Services.rejectPrediction(id);
+  await Services.verifyFieldReport(id, 'reject');
 
   showToast(
     'warning',
     '✗',
     'Prediction rejected',
     `${id} — field observation differs from AI`,
-    'DEMO'
   );
 
   await refreshAll();
@@ -755,14 +753,14 @@ const items = (Array.isArray(storedItems) && storedItems.length > 0
     return;
   }
 
-  await Services.requestInspection(id);
+  await Services.verifyFieldReport(id, 'reinspect');
 
   showToast(
     'info',
     '📍',
     'Inspection requested',
     `${id} — additional field verification required`,
-    'DEMO'
+
   );
 
   await refreshAll();
