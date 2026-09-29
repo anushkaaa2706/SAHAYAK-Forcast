@@ -512,11 +512,19 @@
             state.miniMap.remove();
         }
 
-        const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OSM &copy; CARTO',
-            subdomains: 'abcd',
-            maxZoom: 19
-        });
+        // 100% Free, NO API KEY required (OpenStreetMap)
+const osmTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+});
+
+state.miniMap = L.map('simMiniMap', {
+    center: [state.zone.lat, state.zone.lng],
+    zoom: 9,
+    zoomControl: false,
+    attributionControl: false,
+    layers: [osmTiles] // Yahan osmTiles use karo
+});
 
         state.miniMap = L.map('simMiniMap', {
             center: [state.zone.lat, state.zone.lng],

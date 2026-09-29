@@ -270,48 +270,48 @@
     }
 
     function initMap(zone, infrastructure, villages) {
-        if (typeof L === 'undefined') return;
+    if (typeof L === 'undefined') return;
 
-        const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OSM &copy; CARTO',
-            subdomains: 'abcd',
-            maxZoom: 19
-        });
+    // 100% Free OpenStreetMap - NO API KEY required
+    const osmTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+    });
 
-        state.map = L.map('infraMap', {
-            center: [zone.lat, zone.lng],
-            zoom: 12,
-            zoomControl: true,
-            layers: [darkTiles]
-        });
+    state.map = L.map('infraMap', {
+        center: [zone.lat, zone.lng],
+        zoom: 12,
+        zoomControl: true,
+        layers: [osmTiles]
+    });
 
-        // Risk zone polygon
-        const level = zone.level.toLowerCase();
-        const color = DEMO_DATA.riskLevels[level]?.color || '#F97316';
-        const radius = 2000 + (zone.risk / 100) * 3000;
+    // Risk zone polygon
+    const level = zone.level.toLowerCase();
+    const color = DEMO_DATA.riskLevels[level]?.color || '#F97316';
+    const radius = 2000 + (zone.risk / 100) * 3000;
 
-        L.circle([zone.lat, zone.lng], {
-            radius: radius,
-            color: color,
-            weight: 1.5,
-            fillColor: color,
-            fillOpacity: 0.15
-        }).addTo(state.map);
+    L.circle([zone.lat, zone.lng], {
+        radius: radius,
+        color: color,
+        weight: 1.5,
+        fillColor: color,
+        fillOpacity: 0.15
+    }).addTo(state.map);
 
-        // Infrastructure markers
-        infrastructure.forEach(infra => {
-            const icon = getInfraMarkerIcon(infra.type);
-            const marker = L.marker([infra.lat, infra.lng], { icon }).addTo(state.map);
-            marker.on('click', () => showMarkerPopup(infra));
-        });
+    // Infrastructure markers
+    infrastructure.forEach(infra => {
+        const icon = getInfraMarkerIcon(infra.type);
+        const marker = L.marker([infra.lat, infra.lng], { icon }).addTo(state.map);
+        marker.on('click', () => showMarkerPopup(infra));
+    });
 
-        // Village markers
-        villages.forEach(village => {
-            const icon = getInfraMarkerIcon('village');
-            const marker = L.marker([village.lat, village.lng], { icon }).addTo(state.map);
-            marker.on('click', () => showMarkerPopup(village, 'village'));
-        });
-    }
+    // Village markers
+    villages.forEach(village => {
+        const icon = getInfraMarkerIcon('village');
+        const marker = L.marker([village.lat, village.lng], { icon }).addTo(state.map);
+        marker.on('click', () => showMarkerPopup(village, 'village'));
+    });
+}
 
     function getInfraMarkerIcon(type) {
         const emoji = {
