@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SAHAYAK AI Risk Analysis — Explainable landslide risk intelligence">
+    <title>Risk Analysis — SAHAYAK</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/landing.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/risk-analysis.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body>
+    <div class="app-shell">
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar" role="navigation" aria-label="Primary navigation">
+            <div class="sidebar-brand">
+                <div class="brand-logo" aria-hidden="true">
+                    <img src="./logo.png" class="my-png" alt="SAHAYAK Logo"style="height: auto; width: 100px;">
+                        <defs>
+                            <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#19B8C7"/>
+                                <stop offset="100%" stop-color="#0F9D8A"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M20 3 L34 8 V20 C34 28 28 34 20 37 C12 34 6 28 6 20 V8 Z" fill="none" stroke="url(#logoGrad)" stroke-width="1.5"/>
+                        <path d="M10 26 L16 16 L20 22 L24 14 L30 26 Z" fill="url(#logoGrad)" opacity="0.85"/>
+                        <circle cx="24" cy="14" r="2" fill="#19B8C7"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-name">SAHAYAK</span>
+                    <span class="brand-sub">NER Landslide Intelligence</span>
+                </div>
+            </div>
+            <nav class="sidebar-nav" id="sidebarNav"></nav>
+            <div class="sidebar-footer">
+                <div class="sidebar-status">
+                    <span class="status-dot"></span>
+                    <span>System Operational</span>
+                </div>
+                <div class="sidebar-user">
+                   <div class="user-avatar" id="sidebarUserAvatar">U</div>
+
+<div class="user-info">
+    <div class="user-name" id="sidebarUserName">User</div>
+    <div class="user-role" id="sidebarUserRole">User</div>
+</div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- TOP HEADER -->
+        <header class="top-header">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+
+            <div class="header-title-wrap">
+                <nav class="breadcrumb" aria-label="Breadcrumb">
+                    <a href="dashboard.html">Dashboard</a>
+                    <span class="breadcrumb-sep">/</span>
+                    <a href="risk-map.html">Risk Map</a>
+                    <span class="breadcrumb-sep">/</span>
+                    <span class="breadcrumb-current" id="breadcrumbLocation">Tawang</span>
+                </nav>
+            </div>
+
+            <div class="header-actions">
+                <div class="header-system-status">
+                    <span class="status-dot"></span>
+                    <span>All systems operational</span>
+                </div>
+                <select class="lang-selector" aria-label="Language">
+                    <option>EN</option>
+                    <option>HI</option>
+                </select>
+                <button class="header-user">
+    <div class="user-avatar" id="headerUserAvatar">U</div>
+    <span class="header-user-name" id="headerUserName">User</span>
+</button>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content" style="padding: 0;">
+            <!-- Page Header -->
+            <div class="analysis-header">
+                <div class="analysis-header-top">
+                    <div class="analysis-title-wrap">
+                        <h1 class="analysis-title">
+                            AI Risk Analysis
+                            <span class="analysis-title-badge" id="titleBadge">TAWANG · WARNING</span>
+                        </h1>
+                        <p class="analysis-subtitle">Explainable landslide risk intelligence for monitored locations</p>
+                    </div>
+                    <div class="location-selector">
+                        <span class="location-selector-label">LOCATION</span>
+                        <select id="locationSelect" aria-label="Select location for analysis"></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic content -->
+            <div class="analysis-main" id="analysisContent">
+                <div class="analysis-state">
+                    <div class="analysis-state-icon"><div class="loading-spinner"></div></div>
+                    <div class="analysis-state-title">Loading AI risk analysis...</div>
+                    <div class="analysis-state-sub">Fetching intelligence for selected location</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Full Explanation Modal -->
+    <div class="modal-overlay" id="explanationModal">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <div class="modal-title">Full AI Explanation</div>
+                <button class="modal-close" onclick="document.getElementById('explanationModal').classList.remove('active')" aria-label="Close">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" id="explanationModalBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="document.getElementById('explanationModal').classList.remove('active')">Close</button>
+                <a href="#" class="btn btn-primary" onclick="document.getElementById('explanationModal').classList.remove('active'); return false;">Download Report</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="js/services.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/risk-analysis.js"></script>
+</body>
+</html>

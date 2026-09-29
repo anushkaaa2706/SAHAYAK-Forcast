@@ -1,0 +1,3092 @@
+// js/services.js
+// ============================================================================
+// SAHAYAK — Environmental Intelligence Service Layer
+// ============================================================================
+// Live sources used by the monitoring console:
+//   Open-Meteo       -> rainfall + modelled soil moisture
+//   Open-Meteo Geo   -> place-name geocoding
+//   Open-Meteo Arch. -> historical precipitation
+//   OpenTopoData     -> ASTER 30 m DEM elevation
+//   NASA GIBS        -> optional satellite imagery layer
+//   ISRO / NRSC      -> published historical landslide inventory summary
+//
+// Engineering rule: a value is labelled LIVE only when it is obtained from
+// an external source during the current request. Derived values are labelled
+// DERIVED so the dashboard never presents synthetic values as observations.
+// ============================================================================
+
+const Services = {
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+
+  API: {
+    
+    OPEN_METEO: 'https://api.open-meteo.com/v1/forecast',
+    OPEN_METEO_GEOCODING: 'https://geocoding-api.open-meteo.com/v1/search',
+    OPEN_METEO_ARCHIVE: 'https://archive-api.open-meteo.com/v1/archive',
+    // Browser-safe terrain elevation source.
+    // Open-Meteo Elevation uses Copernicus DEM GLO-90 (90 m).
+    OPEN_METEO_ELEVATION: 'https://api.open-meteo.com/v1/elevation',
+    OSRM: 'https://router.project-osrm.org/route/v1/driving'
+  },
+
+  ML_API_BASE: 'https://sahayak-ml-api.onrender.com',
+  // Published ISRO / NRSC Landslide Atlas inventory counts.
+  // These are real inventory records, not synthetic event rows.
+  ISRO_LANDSLIDE_INVENTORY: {
+    source: 'ISRO / NRSC Landslide Atlas of India',
+    coverage: '1998-2022',
+    global: {
+      total: 80933,
+      seasonal: 41593,
+      eventBased: 37074,
+      fieldBased: 2266
+    },
+    northeast: [
+      { state: 'Arunachal Pradesh', 2014: 2904, 2017: 4709 },
+      { state: 'Assam', 2014: 1243, 2017: 793 },
+      { state: 'Meghalaya', 2014: 2127, 2017: 512 },
+      { state: 'Sikkim', 2014: 73, 2017: 79 },
+      { state: 'Nagaland', 2014: 54, 2017: 2071 },
+      { state: 'Manipur', 2014: 379, 2017: 4559 },
+      { state: 'Mizoram', 2014: 1205, 2017: 2254 },
+      { state: 'Tripura', 2014: 56, 2017: 8014 }
+    ]
+  },
+
+  // ============================================================
+  // GENERIC HELPERS
+  // ============================================================
+  /// Fetch JSON with timeout and error handling
+  async _fetchJSON(url, options = {}) {
+    console.log("🌐 API REQUEST STARTED:", url);
+
+    const controller = new AbortController();
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, options.timeout || 10000);
+
+    try {
+      console.log("📡 Sending fetch request...");
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          ...(options.headers || {})
+        }
+      });
+
+      console.log("📥 API RESPONSE:", {
+        url: url,
+        status: response.status,
+        ok: response.ok
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      console.log("✅ API DATA RECEIVED:", data);
+
+      return data;
+
+    } catch (error) {
+
+      console.error("❌ API REQUEST ERROR:", {
+        url: url,
+        error: error
+      });
+
+      throw error;
+
+    } finally {
+      clearTimeout(timeout);
+    }
+  },
+
+  async _safeFetch(url, fallback = null, options = {}) {
+    try {
+      return await this._fetchJSON(url, options);
+    } catch (error) {
+      console.warn('API request failed:', url, error);
+      return fallback;
+    }
+  },
+
+  _findZone(locationName) {
+    if (!locationName || typeof DEMO_DATA === 'undefined') {
+      return null;
+    }
+
+    const query = String(locationName).trim().toLowerCase();
+
+    return DEMO_DATA.riskZones?.find(z =>
+      String(z.location || '').toLowerCase() === query
+    ) || DEMO_DATA.riskZones?.find(z =>
+      String(z.location || '').toLowerCase().includes(query)
+    ) || null;
+  },
+
+  _getCoordinates(locationName) {
+    const zone = this._findZone(locationName);
+
+    if (zone && Number.isFinite(Number(zone.lat)) && Number.isFinite(Number(zone.lng))) {
+      return {
+        lat: Number(zone.lat),
+        lng: Number(zone.lng)
+      };
+    }
+
+    return null;
+  },
+
+  // Resolve any user-entered place name through Open-Meteo Geocoding.
+  // Results are cached in memory so repeated monitoring requests do not
+  // repeatedly hit the geocoding endpoint.
+  _geocodeCache: new Map(),
+
+  async _resolveCoordinates(locationName) {
+    const local = this._getCoordinates(locationName);
+    if (local) return { ...local, source: 'local-zone' };
+
+    const query = String(locationName || '').trim();
+    if (!query) return null;
+
+    const cacheKey = query.toLowerCase();
+    if (this._geocodeCache.has(cacheKey)) {
+      return this._geocodeCache.get(cacheKey);
+    }
+
+    const url =
+      `${this.API.OPEN_METEO_GEOCODING}` +
+      `?name=${encodeURIComponent(query)}` +
+      `&count=1` +
+      `&language=en` +
+      `&format=json` +
+      `&countryCode=IN`;
+
+    const data = await this._safeFetch(url, null);
+    const place = data?.results?.[0];
+
+    if (!place || !Number.isFinite(Number(place.latitude)) || !Number.isFinite(Number(place.longitude))) {
+      return null;
+    }
+
+    const result = {
+      lat: Number(place.latitude),
+      lng: Number(place.longitude),
+      name: place.name,
+      state: place.admin1 || '',
+      country: place.country || 'India',
+      elevation: place.elevation ?? null,
+      source: 'open-meteo-geocoding'
+    };
+
+    this._geocodeCache.set(cacheKey, result);
+    return result;
+  },
+
+  _formatTime(date = new Date()) {
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  },
+
+  _levelFromRisk(score) {
+    if (score >= 80) return 'CRITICAL';
+    if (score >= 60) return 'HIGH';
+    if (score >= 30) return 'WATCH';
+    return 'SAFE';
+  },
+
+  _delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  },
+
+
+  // ============================================================
+  // RISK DATA
+  // ============================================================
+
+  async getRiskData(locationId = 'tawang') {
+    await this._delay(100);
+
+    const zone = this._findZone(locationId);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    return {
+      ...zone,
+      timestamp: new Date().toISOString(),
+      isDemo: true
+    };
+  },
+
+_mapLevelFromRisk(score) {
+  if (score >= 81) return 'WARNING';
+  if (score >= 61) return 'ALERT';
+  if (score >= 31) return 'WATCH';
+  return 'SAFE';
+},
+ 
+_prettyFeature(name) {
+  const labels = {
+    elevation: 'Elevation',
+    slope: 'Slope steepness',
+    aspect: 'Slope orientation',
+    rain_1d: 'Rainfall (last 24h)',
+    rain_3d: 'Rainfall (last 3 days)',
+    rain_7d: 'Rainfall (last 7 days)',
+    rain_7d_anomaly: 'Rainfall vs seasonal norm'
+  };
+  return labels[name] || name;
+},
+ 
+// One zone -> one call to the deployed model. Cached for 10 minutes
+// per browser tab so reloading the map does not hit the API again.
+async _fetchZoneModelScore(zone) {
+  const cacheKey = `sahayak_zone_score_${zone.id}`;
+  const TTL = 10 * 60 * 1000;
+ 
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+    if (cached && Date.now() - cached.at < TTL) return cached.data;
+  } catch (e) { /* storage unavailable, ignore */ }
+ 
+  const url = `${this.ML_API_BASE}/risk-score?lat=${zone.lat}&lon=${zone.lng}`;
+  const data = await this._safeFetch(url, null, { timeout: 60000 });
+ 
+  if (!data || !Number.isFinite(Number(data.risk_score))) return null;
+ 
+  try {
+    sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data }));
+  } catch (e) { /* ignore */ }
+ 
+  return data;
+},
+ 
+// (3) REPLACE the old getAllRiskZones() (the one that returns DEMO_DATA)
+// with this one. Delete the old version so there is only one.
+async getAllRiskZones() {
+  const zones = DEMO_DATA.riskZones || [];
+  if (!zones.length) return [];
+ 
+  const results = new Array(zones.length).fill(null);
+ 
+  // First request goes alone: it wakes the Render instance if it is asleep.
+  results[0] = await this._fetchZoneModelScore(zones[0]);
+ 
+  if (!results[0]) {
+    console.warn('ML API not reachable, risk map is showing demo scores');
+    return zones.map(z => ({ ...z, isDemo: true }));
+  }
+ 
+  // Remaining zones in small batches so the API's terrain lookup
+  // does not get rate limited.
+  const BATCH = 3;
+  for (let i = 1; i < zones.length; i += BATCH) {
+    const chunk = zones.slice(i, i + BATCH);
+    const out = await Promise.all(chunk.map(z => this._fetchZoneModelScore(z)));
+    out.forEach((r, j) => { results[i + j] = r; });
+  }
+ 
+  // Write live values back into DEMO_DATA.riskZones itself, because
+  // risk-map.js (filters, search, info panel) reads that array directly.
+  zones.forEach((zone, i) => {
+    const live = results[i];
+    if (!live) { zone.isLive = false; return; }
+ 
+    const score = Math.max(0, Math.min(100, Math.round(Number(live.risk_score))));
+    zone.risk = score;
+    zone.level = this._mapLevelFromRisk(score);
+    zone.modelRiskLevel = live.risk_level;
+    zone.isLive = true;
+    zone.liveUpdated = new Date().toISOString();
+ 
+    if (Array.isArray(live.top_factors) && live.top_factors.length) {
+      zone.factors = live.top_factors.map(f => {
+        const c = Number(f.contribution || 0);
+        return {
+          label: this._prettyFeature(f.feature) + (c < 0 ? ' (lowers risk)' : ''),
+          value: Math.round(Math.abs(c) * 100)
+        };
+      });
+    }
+  });
+ 
+  return zones.map(z => ({ ...z, isDemo: !z.isLive }));
+},
+ 
+
+
+  // ============================================================
+  // WEATHER / RAINFALL
+  // ============================================================
+
+  async getRainfall(locationId = 'tawang', period = '24h') {
+
+    const coords = this._getCoordinates(locationId);
+
+    if (!coords) {
+      return this._getDemoRainfall();
+    }
+
+    const url =
+      `${this.API.OPEN_METEO}` +
+      `?latitude=${encodeURIComponent(coords.lat)}` +
+      `&longitude=${encodeURIComponent(coords.lng)}` +
+      `&hourly=precipitation,rain,soil_moisture_0_to_7cm` +
+      `&forecast_days=2` +
+      `&timezone=auto`;
+
+    const data = await this._safeFetch(url, null);
+
+    if (!data?.hourly) {
+      return this._getDemoRainfall();
+    }
+
+    const times = data.hourly.time || [];
+    const precipitation = data.hourly.precipitation || [];
+
+    const result = times.slice(0, 25).map((time, index) => ({
+      hour: new Date(time).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      value: Number(precipitation[index] || 0),
+      timestamp: time,
+      isDemo: false
+    }));
+
+    return result;
+  },
+
+  async getRainfallData(locationName = 'Tawang') {
+    return this.getRainfall(locationName, '24h');
+  },
+
+  async getRainfallHistory(locationName) {
+    const coords = this._getCoordinates(locationName);
+
+    if (!coords) {
+      const zone = this._findZone(locationName);
+
+      if (!zone) {
+        return {
+          error: 'Location not found',
+          isDemo: true
+        };
+      }
+
+      return {
+        location: locationName,
+        data: zone.rainfallHistory || [],
+        isDemo: true
+      };
+    }
+
+    const url =
+      `${this.API.OPEN_METEO}` +
+      `?latitude=${coords.lat}` +
+      `&longitude=${coords.lng}` +
+      `&hourly=precipitation` +
+      `&past_days=7` +
+      `&forecast_days=1` +
+      `&timezone=auto`;
+
+    const data = await this._safeFetch(url, null);
+
+    if (!data?.hourly) {
+      const zone = this._findZone(locationName);
+
+      return {
+        location: locationName,
+        data: zone?.rainfallHistory || [],
+        isDemo: true
+      };
+    }
+
+    return {
+      location: locationName,
+      data: (data.hourly.time || []).map((time, index) => ({
+        timestamp: time,
+        hour: new Date(time).toLocaleString(),
+        value: Number(data.hourly.precipitation?.[index] || 0)
+      })),
+      isDemo: false
+    };
+  },
+
+  async _getDemoRainfall() {
+    return [
+      { hour: '00:00', value: 2.1 },
+      { hour: '04:00', value: 3.4 },
+      { hour: '08:00', value: 5.8 },
+      { hour: '12:00', value: 8.2 },
+      { hour: '16:00', value: 12.5 },
+      { hour: '20:00', value: 9.3 },
+      { hour: '24:00', value: 6.7 }
+    ].map(d => ({
+      ...d,
+      isDemo: true
+    }));
+  },
+
+
+  // ============================================================
+  // LOCATION SEARCH
+  // ============================================================
+
+  async searchLocations(query) {
+
+    if (!query || !query.trim()) return [];
+
+    const q = query.trim();
+
+    const url =
+      `${this.API.OPEN_METEO_GEOCODING}` +
+      `?name=${encodeURIComponent(q)}` +
+      `&count=6` +
+      `&language=en` +
+      `&format=json` +
+      `&countryCode=IN`;
+
+    const data = await this._safeFetch(url, null);
+
+    if (Array.isArray(data?.results) && data.results.length) {
+      return data.results.map((place, index) => ({
+        id: `OM-${place.id || index}`,
+        name: place.name,
+        state: place.admin1 || '',
+        country: place.country || '',
+        lat: Number(place.latitude),
+        lng: Number(place.longitude),
+        elevation: place.elevation ?? null,
+        displayName: [place.name, place.admin1, place.country].filter(Boolean).join(', '),
+        risk: null,
+        level: 'UNKNOWN',
+        isDemo: false,
+        source: 'Open-Meteo Geocoding'
+      }));
+    }
+
+    // Existing local data remains a graceful fallback.
+    const localQuery = q.toLowerCase();
+    return (DEMO_DATA.riskZones || [])
+      .filter(z =>
+        String(z.location || '').toLowerCase().includes(localQuery) ||
+        String(z.state || '').toLowerCase().includes(localQuery)
+      )
+      .map(z => ({
+        id: z.id,
+        name: z.location,
+        state: z.state,
+        lat: z.lat,
+        lng: z.lng,
+        risk: z.risk,
+        level: z.level,
+        isDemo: true,
+        source: 'Local fallback'
+      }))
+      .slice(0, 6);
+  },
+
+
+  // ============================================================
+  // ALERT SERVICES
+  // ============================================================
+
+  async getAlerts(filters = {}) {
+    await this._delay(50);
+
+    let alerts = [];
+
+    if (typeof SahayakState !== 'undefined') {
+      alerts = SahayakState.getAlerts() || [];
+    } else {
+      alerts = DEMO_DATA.alerts || [];
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      alerts = alerts.filter(a => a.status === filters.status);
+    }
+
+    if (filters.severity && filters.severity !== 'all') {
+      alerts = alerts.filter(a => a.severity === filters.severity);
+    }
+
+    if (filters.state && filters.state !== 'all') {
+      alerts = alerts.filter(a => a.state === filters.state);
+    }
+
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+
+      alerts = alerts.filter(a =>
+        String(a.location || '').toLowerCase().includes(q) ||
+        String(a.id || '').toLowerCase().includes(q) ||
+        String(a.state || '').toLowerCase().includes(q)
+      );
+    }
+
+    return alerts.map(a => ({
+      ...a,
+      isDemo: true
+    }));
+  },
+
+  async getAlertById(id) {
+    await this._delay(50);
+
+    const alerts =
+      typeof SahayakState !== 'undefined'
+        ? SahayakState.getAlerts() || []
+        : DEMO_DATA.alerts || [];
+
+    const alert = alerts.find(a => a.id === id);
+
+    return alert
+      ? { ...alert, isDemo: true }
+      : null;
+  },
+
+  async createAlert(alertData) {
+    await this._delay(100);
+
+    const alerts = SahayakState.getAlerts();
+
+    const newAlert = {
+      id: 'SAH-ALR-' + String(alerts.length + 1).padStart(4, '0'),
+      ...alertData,
+      issuedAt: Date.now(),
+      issued: 'Just now',
+      status: 'active',
+      read: false,
+      assignedOfficer: null,
+      timeline: [
+        {
+          time: 'Now',
+          event: 'Warning generated by authority'
+        }
+      ]
+    };
+
+    SahayakState.addAlert(newAlert);
+
+    SahayakState.addNotification({
+      type: 'critical',
+      icon: '🔴',
+      title: 'New warning generated',
+      message: `${newAlert.location}: ${newAlert.type}`,
+      timestamp: 'Just now',
+      read: false
+    });
+
+    return {
+      ...newAlert,
+      isDemo: true
+    };
+  },
+
+  async updateAlert(id, updates) {
+    await this._delay(100);
+
+    SahayakState.updateAlert(id, updates);
+
+    return {
+      success: true,
+      isDemo: true
+    };
+  },
+
+  async assignOfficerToAlert(alertId, officer) {
+    await this._delay(100);
+
+    SahayakState.updateAlert(alertId, {
+      assignedOfficer: officer
+    });
+
+    SahayakState.addNotification({
+      type: 'info',
+      icon: '📍',
+      title: 'Field officer assigned',
+      message: `${officer.name} assigned to ${alertId}`,
+      timestamp: 'Just now',
+      read: false
+    });
+
+    return {
+      success: true,
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // FIELD REPORT SERVICES
+  // ============================================================
+
+  async getFieldReports(filters = {}) {
+
+    await this._delay(50);
+
+    let reports =
+      SahayakState.getReports() ||
+      DEMO_DATA.fieldReports ||
+      [];
+
+    if (filters.status && filters.status !== 'all') {
+      reports = reports.filter(r => r.status === filters.status);
+    }
+
+    if (filters.severity && filters.severity !== 'all') {
+      reports = reports.filter(r => r.severity === filters.severity);
+    }
+
+    if (filters.state && filters.state !== 'all') {
+      reports = reports.filter(r => r.state === filters.state);
+    }
+
+    if (filters.type && filters.type !== 'all') {
+      reports = reports.filter(r => r.type === filters.type);
+    }
+
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+
+      reports = reports.filter(r =>
+        String(r.location || '').toLowerCase().includes(q) ||
+        String(r.id || '').toLowerCase().includes(q) ||
+        String(r.officer || '').toLowerCase().includes(q)
+      );
+    }
+
+    return reports.map(r => ({
+      ...r,
+      isDemo: true
+    }));
+  },
+
+  async getFieldReportById(id) {
+    await this._delay(50);
+
+    const reports = SahayakState.getReports() || [];
+
+    const report = reports.find(r => r.id === id);
+
+    return report
+      ? { ...report, isDemo: true }
+      : null;
+  },
+
+  async createFieldReport(reportData) {
+
+    await this._delay(100);
+
+    const reports = SahayakState.getReports();
+
+    const newReport = {
+      id: 'FR-' + (1000 + reports.length + 1),
+      ...reportData,
+      submittedAt: Date.now(),
+      submitted: 'Just now',
+      status: 'PENDING'
+    };
+
+    SahayakState.addReport(newReport);
+
+    SahayakState.addNotification({
+      type: 'info',
+      icon: '📍',
+      title: 'Field report submitted',
+      message:
+        `${newReport.officer} submitted ${newReport.type} from ${newReport.location}`,
+      timestamp: 'Just now',
+      read: false
+    });
+
+    return {
+      ...newReport,
+      isDemo: true
+    };
+  },
+
+  async verifyFieldReport(id, result) {
+
+    await this._delay(100);
+
+    const statusMap = {
+      verify: 'VERIFIED',
+      reject: 'REJECTED',
+      reinspect: 'REINSPECTION_REQUESTED'
+    };
+
+    SahayakState.updateReport(id, {
+      status: statusMap[result] || 'VERIFIED'
+    });
+
+    const messages = {
+      verify: 'Prediction verified',
+      reject: 'Prediction not verified',
+      reinspect: 'Re-inspection requested'
+    };
+    SahayakState.addNotification({
+      type: result === 'verify' ? 'success' : 'warning',
+      icon: result === 'verify' ? '✓' : '⚠',
+      title: messages[result],
+      message:
+        `Report ${id} — ${result === 'verify'
+          ? 'Field observation confirmed'
+          : 'Action required'
+        }`,
+      timestamp: 'Just now',
+      read: false
+    });
+
+    return {
+      success: true,
+      isDemo: true
+    };
+  },
+
+  async addToOfflineQueue(report) {
+    await this._delay(50);
+
+    SahayakState.addToOfflineQueue(report);
+
+    return {
+      success: true,
+      isDemo: true
+    };
+  },
+
+  async syncOfflineReports() {
+
+    await this._delay(200);
+
+    const queue = SahayakState.getOfflineQueue();
+
+    queue.forEach(r => {
+
+      r.status = 'PENDING';
+      r.submitted = 'Just now';
+      r.submittedAt = Date.now();
+
+      SahayakState.addReport(r);
+    });
+
+    SahayakState.clearOfflineQueue();
+
+    return {
+      synced: queue.length,
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // OFFICERS
+  // ============================================================
+
+  async getOfficers() {
+
+    await this._delay(50);
+
+    return (DEMO_DATA.officers || []).map(o => ({
+      ...o,
+      isDemo: true
+    }));
+  },
+
+
+  // ============================================================
+  // RISK ANALYSIS
+  // ============================================================
+
+  // ============================================================
+  // RISK ANALYSIS
+  // ============================================================
+
+  async getRiskAnalysis(locationName = 'Tawang') {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: false
+      };
+    }
+
+    // ============================================================
+    // LIVE SAHAYAK ML MODEL
+    // ============================================================
+    //
+    // The deployed FastAPI model accepts only the place name:
+    //
+    // GET /risk-score-by-place?place=shillong
+    //
+    // Example response:
+    // {
+    //   "lat": 25.56892,
+    //   "lon": 91.88313,
+    //   "risk_score": 15,
+    //   "risk_level": "Low",
+    //   "top_factors": [
+    //      {
+    //        "feature": "rain_1d",
+    //        "contribution": -0.262
+    //      }
+    //   ],
+    //   "source": "model"
+    // }
+    //
+    // No Node.js backend is required.
+    // The browser directly calls the deployed FastAPI service.
+
+    const modelUrl =
+      `https://sahayak-ml-api.onrender.com/risk-score-by-place?place=${encodeURIComponent(locationName)}`;
+
+    const model = await this._safeFetch(
+      modelUrl,
+      null,
+      {
+        timeout: 80000
+      }
+    );
+
+    // ============================================================
+    // VALIDATE MODEL RESPONSE
+    // ============================================================
+
+    if (
+      !model ||
+      !Number.isFinite(Number(model.risk_score))
+    ) {
+
+      console.error(
+        'SAHAYAK ML model did not return a valid risk score:',
+        model
+      );
+
+      return {
+        error: 'AI risk model is temporarily unavailable',
+        location: locationName,
+        isDemo: false,
+        modelConnected: false
+      };
+    }
+
+    // ============================================================
+    // MODEL RISK SCORE
+    // ============================================================
+    //
+    // Keep the score between 0 and 100.
+    //
+
+    const riskScore = Math.max(
+      0,
+      Math.min(
+        100,
+        Number(model.risk_score)
+      )
+    );
+
+    // ============================================================
+    // RISK LEVEL
+    // ============================================================
+
+    const rawLevel = String(
+      model.risk_level || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    let uiLevel;
+
+    if (rawLevel === 'critical') {
+
+      uiLevel = 'CRITICAL';
+
+    } else if (rawLevel === 'high') {
+
+      uiLevel = 'HIGH';
+
+    } else if (
+      rawLevel === 'medium' ||
+      rawLevel === 'moderate' ||
+      rawLevel === 'watch'
+    ) {
+
+      uiLevel = 'WATCH';
+
+    } else if (
+      rawLevel === 'low' ||
+      rawLevel === 'safe'
+    ) {
+
+      uiLevel = 'SAFE';
+
+    } else {
+
+      // Fallback only if model does not send a recognized level.
+      uiLevel = this._levelFromRisk(riskScore);
+
+    }
+
+    // ============================================================
+    // LIVE RAINFALL
+    // ============================================================
+    //
+    // Rainfall is still fetched separately so the existing
+    // environmental/rainfall section of the page continues
+    // to display real Open-Meteo data.
+    //
+    // IMPORTANT:
+    // Rainfall does NOT overwrite the ML model's prediction.
+    //
+
+    let rainfall = [];
+
+    try {
+
+      rainfall = await this.getRainfall(locationName);
+
+    } catch (rainfallError) {
+
+      console.warn(
+        'Rainfall data unavailable:',
+        rainfallError
+      );
+
+    }
+
+    const rainfallTotal = rainfall.reduce(
+      (sum, item) =>
+        sum + Number(item.value || 0),
+      0
+    );
+
+    // ============================================================
+    // MODEL TOP FACTORS
+    // ============================================================
+    //
+    // Keep the actual signed contribution returned by the model.
+    //
+
+    const modelFactors =
+      Array.isArray(model.top_factors)
+        ? model.top_factors.map(f => ({
+
+          feature: String(
+            f?.feature || 'unknown'
+          ),
+
+          contribution: Number(
+            f?.contribution || 0
+          )
+
+        }))
+        : [];
+
+    // Structure used by the existing UI.
+
+    const factors = modelFactors.map(f => ({
+
+      label: f.feature,
+
+      value: f.contribution,
+
+      contribution: f.contribution,
+
+      source: 'model'
+
+    }));
+
+    // Sort factors by absolute contribution.
+    // This tells the UI which factors have the
+    // strongest influence on the model prediction.
+
+    const keyDrivers = modelFactors
+      .slice()
+      .sort(
+        (a, b) =>
+          Math.abs(b.contribution) -
+          Math.abs(a.contribution)
+      )
+      .map(
+        f => f.feature
+      );
+
+    // ============================================================
+    // RETURN LIVE MODEL RESULT
+    // ============================================================
+
+    return {
+
+      // Keep existing location information.
+      ...zone,
+
+      // ----------------------------------------------------------
+      // LIVE MODEL RESULT
+      // ----------------------------------------------------------
+
+      risk: riskScore,
+
+      modelRiskScore: riskScore,
+
+      modelRiskLevel:
+        model.risk_level || uiLevel,
+
+      level: uiLevel,
+
+      modelSource:
+        model.source || 'model',
+
+      modelConnected: true,
+
+      modelLatitude:
+        Number(model.lat),
+
+      modelLongitude:
+        Number(model.lon),
+
+      // ----------------------------------------------------------
+      // MODEL FACTORS
+      // ----------------------------------------------------------
+
+      modelFactors,
+
+      factors,
+
+      keyDrivers,
+
+      // ----------------------------------------------------------
+      // REAL RAINFALL
+      // ----------------------------------------------------------
+
+      currentRainfall:
+        Math.round(
+          rainfallTotal * 10
+        ) / 10,
+
+      // ----------------------------------------------------------
+      // TIMESTAMP
+      // ----------------------------------------------------------
+
+      timestamp:
+        new Date().toISOString(),
+
+      // This is now a real model result.
+      isDemo: false
+
+    };
+  },
+
+  async getRiskFactors(locationName = 'Tawang') {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    return {
+      location: locationName,
+      factors: zone.factors || [],
+      keyDrivers: zone.keyDrivers || [],
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // EXPOSURE
+  // ============================================================
+
+  async getExposureData(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    const exposure = zone.exposure || {
+      population: zone.population || 1000,
+
+      villages:
+        Math.max(
+          2,
+          Math.round((zone.population || 1000) / 300)
+        ),
+
+      roads: typeof zone.roads === 'number'
+        ? zone.roads
+        : 3,
+
+      schools: zone.schools || 2,
+      hospitals: zone.hospitals || 1,
+      bridges: zone.bridges || 1
+    };
+
+    const populationBreakdown =
+      zone.populationBreakdown || {
+
+        high:
+          Math.round(
+            exposure.population * 0.34
+          ),
+
+        moderate:
+          Math.round(
+            exposure.population * 0.43
+          ),
+
+        low:
+          Math.round(
+            exposure.population * 0.23
+          )
+      };
+
+    return {
+      location: locationName,
+      state: zone.state,
+      risk: zone.risk,
+      level: zone.level,
+      exposure,
+      populationBreakdown,
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // ELEVATION / TERRAIN
+  // ============================================================
+
+  async getTerrainAnalysis(locationName) {
+
+    const coords = await this._resolveCoordinates(locationName);
+
+    if (!coords) {
+      return {
+        location: locationName,
+        error: 'Location not found',
+        isDemo: true,
+        source: 'No coordinates available'
+      };
+    }
+
+    // Use the same live terrain calculation used by the monitoring page.
+    const terrain = await this._getLiveTerrainBlock(
+      locationName,
+      this._findZone(locationName),
+      null,
+      coords
+    );
+
+    return {
+      ...terrain,
+      source: terrain.source || 'Open-Meteo Elevation + Open-Meteo',
+      dataset: terrain.dataset || 'Copernicus DEM GLO-90 (90 m)'
+    };
+  },
+
+
+  // ============================================================
+  // SATELLITE
+  // ============================================================
+
+  async getSatelliteData(locationId = 'tawang') {
+
+    const zone = this._findZone(locationId);
+
+    return {
+      location: locationId,
+
+      vegetationIndex:
+        zone?.satelliteIndicators?.vegetationIndex ??
+        0.42,
+
+      surfaceChange:
+        zone?.satelliteChange ??
+        'anomaly',
+
+      lastScan:
+        new Date().toISOString(),
+
+      isDemo: true
+    };
+  },
+
+  async getSatelliteAnalysis(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    return {
+      location: locationName,
+
+      indicators:
+        zone.satelliteIndicators || {},
+
+      surfaceChange:
+        zone.satelliteChange || 'unknown',
+
+      isDemo: true
+    };
+  },
+
+  async getSatelliteIndicators(location = 'Tawang') {
+
+    const data =
+      DEMO_DATA.riskAnalysisData?.[location] ||
+      DEMO_DATA.riskAnalysisData?.Tawang;
+
+    return {
+      ...(data?.satellite || {}),
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // HISTORICAL DATA
+  // ============================================================
+
+  async getHistoricalLandslides() {
+
+    await this._delay(50);
+
+    return (DEMO_DATA.historicalLandslides || [])
+      .map(h => ({
+        ...h,
+        isDemo: true
+      }));
+  },
+
+  async getHistoricalContext(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    return {
+      location: locationName,
+
+      events:
+        zone.historicalEventsList ||
+        zone.historicalEvents ||
+        [],
+
+      count:
+        zone.historical ||
+        0,
+
+      isDemo: true
+    };
+  },
+
+  async getRiskHistory(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    return {
+      location: locationName,
+
+      trend:
+        zone.trend || 'stable',
+
+      events:
+        zone.riskHistoryEvents || [],
+
+      isDemo: true
+    };
+  },
+    // ============================================================
+  // INFRASTRUCTURE (DEBUG VERSION)
+  // ============================================================
+
+  async getInfrastructure(locationName = 'Tawang') {
+    console.log("🏗️ [DEBUG] getInfrastructure called for:", locationName);
+    
+    // 1. Try to find zone in DEMO_DATA first
+    let zone = this._findZone(locationName);
+    console.log("🔍 [DEBUG] Zone found in DEMO_DATA:", zone ? zone.location : "NO");
+    
+    // 2. If zone not found, try to get coordinates from Geocoding API
+    let coords = null;
+    if (!zone) {
+      console.log("⏳ [DEBUG] Resolving coordinates via API...");
+      coords = await this._resolveCoordinates(locationName);
+      console.log("📍 [DEBUG] Coordinates resolved:", coords);
+      
+      if (!coords) {
+        console.log("⚠️ [DEBUG] API failed, falling back to Tawang");
+        zone = this._findZone('Tawang');
+      }
+    }
+
+    // 3. If we have coords but no zone, create a minimal zone object
+    if (!zone && coords) {
+      console.log("🛠️ [DEBUG] Creating auto-generated zone object");
+      zone = {
+        id: 'auto-generated',
+        location: locationName,
+        state: coords.state || 'Unknown',
+        lat: coords.lat,
+        lng: coords.lng,
+        risk: 50,
+        level: 'WATCH'
+      };
+    }
+
+    if (!zone) {
+      console.error("❌ [DEBUG] CRITICAL: No zone and no fallback available!");
+      return {
+        error: 'Location not found',
+        infrastructure: [],
+        isDemo: true
+      };
+    }
+
+    let infrastructure = zone.infrastructure;
+    console.log("📦 [DEBUG] Raw infrastructure data from zone:", infrastructure);
+
+    // 4. Generate demo infrastructure if none exists
+    if (!infrastructure || !Array.isArray(infrastructure)) {
+      console.log("⚙️ [DEBUG] Generating fallback demo infrastructure");
+      infrastructure = [
+        {
+          id: 'INF-AUTO-001',
+          type: 'hospital',
+          name: `${zone.location} District Hospital`,
+          distance: 2.8,
+          status: 'POTENTIALLY_EXPOSED',
+          lat: zone.lat + 0.005,
+          lng: zone.lng - 0.005,
+          capacity: 40
+        },
+        {
+          id: 'INF-AUTO-002',
+          type: 'school',
+          name: `${zone.location} Govt School`,
+          distance: 1.5,
+          status: 'POTENTIALLY_EXPOSED',
+          lat: zone.lat - 0.003,
+          lng: zone.lng + 0.004,
+          capacity: 280
+        },
+        {
+          id: 'INF-AUTO-003',
+          type: 'bridge',
+          name: `${zone.location} River Bridge`,
+          distance: 2.2,
+          status: 'MONITOR',
+          lat: zone.lat + 0.002,
+          lng: zone.lng + 0.003
+        }
+      ];
+    }
+
+    const finalResult = {
+      location: locationName,
+      infrastructure,
+      isDemo: true
+    };
+    
+    console.log("✅ [DEBUG] getInfrastructure returning successfully:", finalResult);
+    return finalResult;
+  },
+
+  
+  // ============================================================
+  // ROADS
+  // ============================================================
+
+  async getRoadRisk(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    let roads = Array.isArray(zone.roads)
+      ? zone.roads
+      : null;
+
+    if (!roads) {
+
+      roads = [
+
+        {
+          id: 'RD-AUTO-001',
+          name: `${zone.location} Main Road`,
+          risk:
+            zone.risk > 60
+              ? 'HIGH'
+              : 'MODERATE',
+          distance: 1.2,
+          status: 'Monitor'
+        },
+
+        {
+          id: 'RD-AUTO-002',
+          name: `${zone.location} Access Road`,
+          risk: 'MODERATE',
+          distance: 2.5,
+          status: 'Monitor'
+        }
+      ];
+    }
+
+    const summary = {
+      total: roads.length,
+
+      critical:
+        roads.filter(
+          r => r.risk === 'CRITICAL'
+        ).length,
+
+      high:
+        roads.filter(
+          r => r.risk === 'HIGH'
+        ).length,
+
+      moderate:
+        roads.filter(
+          r =>
+            r.risk === 'MODERATE' ||
+            r.risk === 'WATCH'
+        ).length
+    };
+
+    return {
+      location: locationName,
+      roads,
+      summary,
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // VILLAGES
+  // ============================================================
+
+  async getVillages(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    let villages = zone.villages;
+
+    if (!Array.isArray(villages)) {
+
+      const count =
+        Math.max(
+          2,
+          Math.round(
+            (zone.population || 1000) / 300
+          )
+        );
+
+      villages = Array.from(
+        { length: count },
+        (_, i) => ({
+
+          id: `VLG-AUTO-${i + 1}`,
+
+          name:
+            `${zone.location} Village ${i + 1}`,
+
+          population:
+            Math.round(
+              (zone.population || 1000) /
+              count
+            ),
+
+          distance:
+            1.5 + i * 1.2,
+
+          exposure:
+            i === 0
+              ? 'HIGH'
+              : i === 1
+                ? 'MODERATE'
+                : 'LOW',
+
+          lat:
+            zone.lat +
+            (Math.random() - 0.5) * 0.02,
+
+          lng:
+            zone.lng +
+            (Math.random() - 0.5) * 0.02
+        })
+      );
+    }
+
+    return {
+      location: locationName,
+      villages,
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // EMERGENCY SERVICES
+  // ============================================================
+
+  async getEmergencyServices(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    const services =
+      zone.emergencyServices || {
+
+        police:
+          Math.max(
+            1,
+            Math.round(
+              (typeof zone.roads === 'number'
+                ? zone.roads
+                : 3) / 2
+            )
+          ),
+
+        relief: 1,
+
+        hospitals:
+          zone.hospitals || 1,
+
+        fire: 1
+      };
+
+    const nearest =
+      zone.nearestResponse || {
+
+        name:
+          `${zone.location} Relief Center`,
+
+        distance: 3.5,
+
+        responseTime: 15
+      };
+
+    return {
+      location: locationName,
+      services,
+      nearest,
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // RESPONSE PRIORITY
+  // ============================================================
+
+  async getResponsePriority(locationName) {
+
+    const zone = this._findZone(locationName);
+
+    if (!zone) {
+      return {
+        error: 'Location not found',
+        isDemo: true
+      };
+    }
+
+    const risk = Number(zone.risk || 0);
+
+    const priority =
+      zone.responsePriority || {
+
+        score:
+          Math.min(
+            100,
+            risk + 10
+          ),
+
+        level:
+          risk >= 80
+            ? 'CRITICAL'
+            : risk >= 60
+              ? 'HIGH'
+              : risk >= 40
+                ? 'MODERATE'
+                : 'LOW'
+      };
+
+    const factors =
+      zone.priorityFactors || [
+
+        {
+          label: 'Hazard Severity',
+          value: Math.round(risk * 0.4)
+        },
+
+        {
+          label: 'Population Exposure',
+          value:
+            Math.round(
+              (zone.population || 1000) / 100
+            )
+        },
+
+        {
+          label: 'Road Connectivity',
+          value:
+            (typeof zone.roads === 'number'
+              ? zone.roads
+              : 3) * 4
+        },
+
+        {
+          label: 'Critical Facilities',
+          value:
+            (
+              (zone.schools || 2) +
+              (zone.hospitals || 1)
+            ) * 3
+        }
+      ];
+
+    return {
+      location: locationName,
+      priority,
+      factors,
+      isDemo: true
+    };
+  },
+
+
+  // ============================================================
+  // MONITORING
+  // ============================================================
+
+  // ------------------------------------------------------------
+  // getMonitoringData(location)
+  //
+  // Returns the data used by monitoring.html.
+  //
+  // - rainfall  -> LIVE (Open-Meteo). Falls back to DEMO_DATA if
+  //                the API call fails or the location has no
+  //                known coordinates.
+  // - terrain   -> PARTIALLY LIVE. Elevation comes from
+  //                Open-Elevation (real). Slope / soil moisture /
+  //                soil type have no free live source and stay
+  //                demo-derived (matches the "PARTIAL LIVE" badge
+  //                already on the page).
+  // - satellite -> DEMO. No free satellite API is wired up.
+  //                Correctly labelled "DATA SOURCE REQUIRED" in
+  //                the UI already.
+  // - historical-> DEMO. Static curated dataset. Correctly
+  //                labelled "DATASET REQUIRED" in the UI already.
+  //
+  // Every section carries its own isDemo flag so the UI can show
+  // truthfully which parts are live and which are placeholders.
+  // ------------------------------------------------------------
+  async getMonitoringData(location = 'Tawang') {
+
+    const zone = this._findZone(location);
+    const demoBlock =
+      DEMO_DATA.monitoringData?.[location] ||
+      DEMO_DATA.monitoringData?.Tawang ||
+      {};
+
+    // Resolve user-entered locations first. This is what makes the page
+    // work for places that are not present in DEMO_DATA.
+    const coords = await this._resolveCoordinates(location);
+
+    const [rainfall, terrain, historicalRainfall] = await Promise.all([
+      this._getLiveRainfallBlock(location, zone, demoBlock.rainfall, coords),
+      this._getLiveTerrainBlock(location, zone, demoBlock.terrain, coords),
+      this.getHistoricalRainfall(location, 30)
+    ]);
+
+    const satellite = this._getSatelliteImageryBlock(location, coords, demoBlock.satellite);
+
+    return {
+      location,
+      coordinates: coords,
+      rainfall,
+      terrain,
+      satellite,
+      historical: {
+        ...(demoBlock.historical || {}),
+        rainfall: historicalRainfall,
+        inventory: this.ISRO_LANDSLIDE_INVENTORY,
+        isDemo: false,
+        source: this.ISRO_LANDSLIDE_INVENTORY.source
+      }
+    };
+  },
+
+  // ------------------------------------------------------------
+  // LIVE RAINFALL BLOCK (Open-Meteo)
+  // ------------------------------------------------------------
+  async _getLiveRainfallBlock(location, zone, demoRainfall, coordsArg = null) {
+
+    const fallback = () => ({ ...(demoRainfall || {}), isDemo: true, source: 'Local fallback' });
+    const coords = coordsArg || await this._resolveCoordinates(location);
+    if (!coords) return fallback();
+
+    const url =
+      `${this.API.OPEN_METEO}` +
+      `?latitude=${coords.lat}` +
+      `&longitude=${coords.lng}` +
+      `&hourly=precipitation,rain,soil_moisture_0_to_7cm` +
+      `&past_days=7` +
+      `&forecast_days=1` +
+      `&timezone=auto`;
+
+    const data = await this._safeFetch(url, null);
+    const times = data?.hourly?.time;
+    const precip = data?.hourly?.precipitation;
+    const rain = data?.hourly?.rain;
+    const soil = data?.hourly?.soil_moisture_0_to_7cm;
+
+    if (!times?.length || !precip?.length) return fallback();
+
+    const now = Date.now();
+    let nowIndex = times.findIndex(t => new Date(t).getTime() > now);
+    if (nowIndex === -1) nowIndex = times.length;
+    nowIndex = Math.max(0, nowIndex - 1);
+
+    const sumLast = hours => {
+      const start = Math.max(0, nowIndex - hours + 1);
+      return precip.slice(start, nowIndex + 1).reduce((sum, v) => sum + Number(v || 0), 0);
+    };
+
+    const current = Math.round(Number(precip[nowIndex] || 0) * 10) / 10;
+    const h24 = Math.round(sumLast(24) * 10) / 10;
+    const h48 = Math.round(sumLast(48) * 10) / 10;
+    const h72 = Math.round(sumLast(72) * 10) / 10;
+    const h7day = Math.round(sumLast(24 * 7) * 10) / 10;
+    const last24Start = Math.max(0, nowIndex - 23);
+    const hourly = precip.slice(last24Start, nowIndex + 1).map(v => Math.round(Number(v || 0) * 10) / 10);
+    while (hourly.length < 24) hourly.unshift(0);
+
+    let running = 0;
+    const accumulated = hourly.map(v => { running += v; return Math.round(running * 10) / 10; });
+
+    const threshold = demoRainfall?.threshold || zone?.simulatorBaseline?.rainfall || 250;
+    const exceeded = h72 > threshold;
+    const exceedPct = threshold > 0 ? Math.max(0, Math.round(((h72 - threshold) / threshold) * 100)) : 0;
+    const currentSoilMoisture = Array.isArray(soil) ? Number(soil[nowIndex] || 0) : null;
+    const currentRain = Array.isArray(rain) ? Number(rain[nowIndex] || 0) : current;
+
+    return {
+      current, currentRain, currentSoilMoisture, h24, h48, h72, h7day,
+      threshold, exceeded, exceedPct, hourly, accumulated,
+      timestamps: times.slice(last24Start, nowIndex + 1),
+      isDemo: false,
+      source: 'Open-Meteo'
+    };
+  },
+
+  // ------------------------------------------------------------
+  // ------------------------------------------------------------
+  // LIVE TERRAIN + SOIL
+  // ------------------------------------------------------------
+  // OpenTopoData supplies the DEM elevation. Slope is calculated from a
+  // small 3x3 neighbourhood of real DEM samples around the selected point.
+  // Open-Meteo supplies modelled volumetric soil moisture for the upper soil
+  // layer. This replaces the previous hard-coded slope/soil values.
+  // ------------------------------------------------------------
+  async _getLiveTerrainBlock(location, zone, demoTerrain, coordsArg = null) {
+
+    const coords = coordsArg || await this._resolveCoordinates(location);
+
+    if (!coords) {
+      return {
+        location,
+        isDemo: true,
+        source: 'No coordinates available',
+        soilMoisture: null,
+        slope: null,
+        elevation: null,
+        aspect: null,
+        soilType: 'Unavailable',
+        stability: 'UNAVAILABLE'
+      };
+    }
+
+    // Copernicus GLO-90 DEM resolution is approximately 90 metres.
+    // We therefore sample the surrounding terrain at roughly one DEM cell.
+    const sampleMeters = 90;
+
+    const latStep = sampleMeters / 111320;
+
+    const lonStep =
+      sampleMeters /
+      (
+        111320 *
+        Math.max(
+          0.1,
+          Math.cos(coords.lat * Math.PI / 180)
+        )
+      );
+
+    // 3x3 terrain neighbourhood.
+    //
+    // Index:
+    // 0 = centre
+    // 1 = north
+    // 2 = south
+    // 3 = east
+    // 4 = west
+    // 5-8 = diagonal points
+
+    const samplePoints = [
+      [0, 0],
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1]
+    ];
+
+    const latitudes = samplePoints.map(
+      ([dy]) => coords.lat + dy * latStep
+    );
+
+    const longitudes = samplePoints.map(
+      ([, dx]) => coords.lng + dx * lonStep
+    );
+
+    // ============================================================
+    // LIVE ELEVATION
+    // ============================================================
+
+    const elevationUrl =
+      `${this.API.OPEN_METEO_ELEVATION}` +
+      `?latitude=${latitudes.join(',')}` +
+      `&longitude=${longitudes.join(',')}`;
+
+    // ============================================================
+    // LIVE SOIL MOISTURE
+    // ============================================================
+
+    const soilUrl =
+      `${this.API.OPEN_METEO}` +
+      `?latitude=${coords.lat}` +
+      `&longitude=${coords.lng}` +
+      `&hourly=soil_moisture_0_to_7cm` +
+      `&past_hours=3` +
+      `&forecast_hours=1` +
+      `&timezone=auto`;
+
+    const [elevationData, soilData] = await Promise.all([
+      this._safeFetch(elevationUrl, null),
+      this._safeFetch(soilUrl, null)
+    ]);
+
+    // ============================================================
+    // PROCESS ELEVATION
+    // ============================================================
+
+    const elevations = Array.isArray(elevationData?.elevation)
+      ? elevationData.elevation.map(Number)
+      : [];
+
+    const valid = elevations.filter(Number.isFinite);
+
+    if (valid.length < 5) {
+
+      return {
+        location,
+        latitude: coords.lat,
+        longitude: coords.lng,
+
+        isDemo: true,
+
+        source: 'Open-Meteo Elevation unavailable',
+
+        dataset: 'Copernicus DEM GLO-90 (90 m)',
+
+        soilMoisture: null,
+
+        slope: null,
+
+        elevation: null,
+
+        aspect: null,
+
+        soilType: 'Not available from selected live APIs',
+
+        stability: 'UNAVAILABLE',
+
+        stabilitySource:
+          'Not calculated because terrain elevation is unavailable'
+      };
+    }
+
+    // ============================================================
+    // GET CENTRE + CARDINAL ELEVATIONS
+    // ============================================================
+
+    const centerElevation = Number(elevations[0]);
+
+    const north = Number(elevations[1]);
+
+    const south = Number(elevations[2]);
+
+    const east = Number(elevations[3]);
+
+    const west = Number(elevations[4]);
+
+    // ============================================================
+    // CALCULATE TERRAIN GRADIENT
+    // ============================================================
+
+    const dxMeters =
+      lonStep *
+      111320 *
+      Math.cos(
+        coords.lat * Math.PI / 180
+      );
+
+    const dyMeters =
+      latStep *
+      111320;
+
+    const dzDx =
+      (east - west) /
+      (2 * dxMeters);
+
+    const dzDy =
+      (north - south) /
+      (2 * dyMeters);
+
+    // ============================================================
+    // CALCULATE SLOPE
+    // ============================================================
+
+    const slope =
+      Math.round(
+        (
+          Math.atan(
+            Math.sqrt(
+              dzDx ** 2 +
+              dzDy ** 2
+            )
+          ) *
+          180 /
+          Math.PI
+        ) * 10
+      ) / 10;
+
+    // ============================================================
+    // CALCULATE ASPECT
+    // ============================================================
+
+    const aspectDegrees =
+      (
+        Math.atan2(
+          dzDx,
+          dzDy
+        ) *
+        180 /
+        Math.PI +
+        360
+      ) % 360;
+
+    const aspect =
+      this._aspectFromDegrees(
+        aspectDegrees
+      );
+
+    // ============================================================
+    // SOIL MOISTURE
+    // ============================================================
+
+    const soilSeries =
+      soilData?.hourly?.soil_moisture_0_to_7cm || [];
+
+    const rawSoil =
+      soilSeries.length
+        ? Number(
+          soilSeries[
+          soilSeries.length - 1
+          ]
+        )
+        : NaN;
+
+    // Open-Meteo soil moisture is m³/m³.
+    // Convert to percentage.
+    const soilMoisture =
+      Number.isFinite(rawSoil)
+        ? Math.round(
+          rawSoil * 1000
+        ) / 10
+        : null;
+
+    // ============================================================
+    // DERIVED STABILITY INDICATOR
+    // ============================================================
+    //
+    // This is NOT a measured landslide probability.
+    // It is only a simple derived indicator based on
+    // terrain slope + modelled soil moisture.
+
+    const stability =
+      !Number.isFinite(soilMoisture)
+
+        ? 'UNAVAILABLE'
+
+        : (
+          slope >= 35 &&
+          soilMoisture >= 65
+        )
+
+          ? 'REDUCED'
+
+          : (
+            slope >= 25 ||
+            soilMoisture >= 50
+          )
+
+            ? 'MODERATE'
+
+            : 'STABLE';
+
+    // ============================================================
+    // FINAL TERRAIN RESULT
+    // ============================================================
+
+    return {
+
+      location,
+
+      latitude:
+        coords.lat,
+
+      longitude:
+        coords.lng,
+
+      elevation:
+        Math.round(
+          centerElevation
+        ),
+
+      dataset:
+        'Copernicus DEM GLO-90 (90 m)',
+
+      slope,
+
+      slopeSource:
+        'Derived from 3x3 Copernicus GLO-90 DEM neighbourhood',
+
+      aspect,
+
+      soilMoisture,
+
+      soilMoistureSource:
+        'Open-Meteo modelled soil moisture, 0-7 cm',
+
+      soilType:
+        'Not available from selected live APIs',
+
+      stability,
+
+      stabilitySource:
+        'Derived indicator (slope + soil moisture)',
+
+      curvature:
+        'Not calculated',
+
+      normal:
+        null,
+
+      isDemo:
+        false,
+
+      source:
+        'Open-Meteo Elevation + Open-Meteo'
+    };
+  },
+
+  _aspectFromDegrees(degrees) {
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return directions[Math.round(degrees / 45) % 8];
+  },
+
+  _getSatelliteImageryBlock(location, coords, demoSatellite) {
+    if (!coords) return { location, isDemo: true, source: 'No coordinates available' };
+
+    // Esri World Imagery is used as the visible satellite basemap because it
+    // remains usable if a NASA GIBS tile is temporarily unavailable. NASA GIBS
+    // is exposed as an optional imagery overlay in monitoring.js.
+    return {
+      location,
+      latitude: coords.lat,
+      longitude: coords.lng,
+      imageryProvider: 'Esri World Imagery + NASA GIBS',
+      isDemo: false,
+      source: 'Esri World Imagery; NASA GIBS optional overlay',
+      note: 'Real remote-sensing imagery. NDVI/NDWI/SAR/landslide classification is not fabricated.'
+    };
+  },
+
+  // Real historical rainfall from Open-Meteo Historical Weather API.
+  async getHistoricalRainfall(location = 'Tawang', days = 30) {
+    const coords = await this._resolveCoordinates(location);
+    if (!coords) return { location, data: [], isDemo: true, source: 'No coordinates' };
+
+    const safeDays = Math.max(1, Math.min(Number(days) || 30, 365));
+    const end = new Date();
+    const start = new Date(end.getTime() - (safeDays - 1) * 86400000);
+    const fmt = d => d.toISOString().slice(0, 10);
+
+    const url =
+      `${this.API.OPEN_METEO_ARCHIVE}` +
+      `?latitude=${coords.lat}` +
+      `&longitude=${coords.lng}` +
+      `&start_date=${fmt(start)}` +
+      `&end_date=${fmt(end)}` +
+      `&hourly=precipitation,rain` +
+      `&timezone=auto`;
+
+    const data = await this._safeFetch(url, null);
+    if (!data?.hourly?.time) {
+      return { location, data: [], isDemo: true, source: 'Historical API unavailable' };
+    }
+
+    return {
+      location,
+      data: data.hourly.time.map((timestamp, i) => ({
+        timestamp,
+        precipitation: Number(data.hourly.precipitation?.[i] || 0),
+        rain: Number(data.hourly.rain?.[i] || 0)
+      })),
+      isDemo: false,
+      source: 'Open-Meteo Historical Weather API'
+    };
+  },
+
+  async getRainfallMonitoring(location = 'Tawang') {
+
+    const rainfall = await this.getRainfall(
+      location,
+      '24h'
+    );
+
+    return {
+      data: rainfall,
+      rainfall,
+      isDemo: rainfall.some(r => r.isDemo)
+    };
+  },
+
+  async getTerrainMonitoring(location = 'Tawang') {
+    return this.getTerrainAnalysis(location);
+  },
+
+  async getSatelliteMonitoring(location = 'Tawang') {
+    return this.getSatelliteAnalysis(location);
+  },
+
+
+  // ============================================================
+  // HISTORICAL EVENTS
+  // ============================================================
+
+  async getHistoricalEvents(filters = {}) {
+    // Use published ISRO/NRSC inventory counts instead of synthetic event rows.
+    const inventory = this.ISRO_LANDSLIDE_INVENTORY;
+    let rows = inventory.northeast.map(item => ({
+      state: item.state,
+      year2014: item[2014],
+      year2017: item[2017],
+      seasonalTotal: item[2014] + item[2017],
+      source: inventory.source,
+      coverage: inventory.coverage
+    }));
+
+    if (filters.state && filters.state !== 'all') {
+      rows = rows.filter(row => row.state === filters.state);
+    }
+
+    if (filters.search) {
+      const q = String(filters.search).toLowerCase();
+      rows = rows.filter(row => row.state.toLowerCase().includes(q));
+    }
+
+    return rows;
+  },
+
+  // ============================================================
+  // NOTIFICATIONS / DASHBOARD
+  // ============================================================
+
+  async getNotifications() {
+
+    await this._delay(30);
+
+    return (
+      DEMO_DATA.notifications || []
+    ).map(n => ({
+      ...n,
+      isDemo: true
+    }));
+  },
+
+
+  async getDataFreshness() {
+
+    await this._delay(30);
+
+    return (
+      DEMO_DATA.dataFreshness || []
+    ).map(d => ({
+      ...d,
+      isDemo: true
+    }));
+  },
+
+
+  async getExposureSummary() {
+
+    await this._delay(30);
+
+    return {
+      ...(DEMO_DATA.exposureSummary || {}),
+      isDemo: true
+    };
+  },
+
+
+  async getFieldStats() {
+
+    await this._delay(30);
+
+    return {
+      ...(DEMO_DATA.fieldStats || {}),
+      isDemo: true
+    };
+  },
+
+
+  async getMetrics() {
+
+    await this._delay(30);
+
+    return Object.entries(
+      DEMO_DATA.metrics || {}
+    ).reduce(
+      (acc, [key, val]) => {
+
+        acc[key] = {
+          ...val,
+          isDemo: true
+        };
+
+        return acc;
+      },
+      {}
+    );
+  },
+
+    // ============================================================
+  // EXPOSURE ACTIVITY (NEW)
+  // ============================================================
+
+  async getExposureActivity(locationName = 'Tawang') {
+    await this._delay(50);
+
+    // Generate demo activity data
+    const activities = [
+      {
+        id: 'ACT-001',
+        type: 'inspection',
+        icon: '🔍',
+        title: 'Infrastructure inspection completed',
+        location: locationName,
+        time: '2 hours ago',
+        officer: 'Rajesh Kumar'
+      },
+      {
+        id: 'ACT-002',
+        type: 'assessment',
+        icon: '📊',
+        title: 'Population exposure assessment updated',
+        location: locationName,
+        time: '5 hours ago',
+        officer: 'System'
+      },
+      {
+        id: 'ACT-003',
+        type: 'verification',
+        icon: '✓',
+        title: 'Road segment verified - operational',
+        location: locationName,
+        time: '1 day ago',
+        officer: 'Priya Sharma'
+      },
+      {
+        id: 'ACT-004',
+        type: 'alert',
+        icon: '⚠',
+        title: 'Risk level updated to WATCH',
+        location: locationName,
+        time: '1 day ago',
+        officer: 'AI System'
+      },
+      {
+        id: 'ACT-005',
+        type: 'report',
+        icon: '📝',
+        title: 'Field report submitted',
+        location: locationName,
+        time: '2 days ago',
+        officer: 'Amit Singh'
+      }
+    ];
+
+    return {
+      location: locationName,
+      activity: activities,
+      isDemo: true
+    };
+  },
+  // ADD THESE 3 methods inside "const Services = { ... }" in services.js
+// (paste anywhere inside the object, e.g. right after getMetrics())
+// risk-map.js calls these but they were not carried over when
+// services.js was rewritten with the live-API architecture.
+
+async getCitizenReports() {
+  await this._delay(50);
+  return (DEMO_DATA.citizenReports || []).map(r => ({ ...r, isDemo: true }));
+},
+
+async getSatelliteAnomalies() {
+  await this._delay(50);
+  return (DEMO_DATA.satelliteAnomalies || []).map(a => ({ ...a, isDemo: true }));
+},
+
+// risk-map.js's rainfall map-marker layer needs spatial points
+// ({lat, lng, location, intensity, level}), not the hourly time-series
+// that getRainfallData() now correctly returns for the monitoring page.
+// This keeps both use cases working without changing getRainfallData().
+async getRainfallMapData() {
+  await this._delay(50);
+  return (DEMO_DATA.rainfallData || []).map(r => ({ ...r, isDemo: true }));
+},
+  // ============================================================
+  // SIMULATOR (MISSING FUNCTIONS)
+  // ============================================================
+
+  async getSimulationPresets() {
+    await this._delay(50);
+    return {
+      current: {
+        name: 'Current Conditions',
+        rainfallMultiplier: 1.0,
+        soilMultiplier: 1.0,
+        slopeMultiplier: 1.0,
+        historicalMultiplier: 1.0,
+        satelliteMultiplier: 1.0
+      },
+      moderate: {
+        name: 'Moderate Scenario',
+        rainfallMultiplier: 1.4,
+        soilMultiplier: 1.2,
+        slopeMultiplier: 1.0,
+        historicalMultiplier: 1.1,
+        satelliteMultiplier: 1.2
+      },
+      severe: {
+        name: 'Severe Scenario',
+        rainfallMultiplier: 1.8,
+        soilMultiplier: 1.5,
+        slopeMultiplier: 1.1,
+        historicalMultiplier: 1.3,
+        satelliteMultiplier: 1.5
+      }
+    };
+  },
+
+  async runSimulation(locationName, params) {
+    await this._delay(800); // Simulate API call delay
+
+    const zone = this._findZone(locationName);
+    if (!zone) {
+      return { error: 'Location not found' };
+    }
+
+    const baseline = zone.simulatorBaseline || {
+      rainfall: zone.rainfall || 100,
+      soilMoisture: zone.soilMoisture || 50,
+      slope: zone.slope || 25,
+      historicalWeight: 50,
+      satelliteWeight: 20
+    };
+
+    const baselineRisk = zone.risk;
+
+    // Transparent demo formula
+    const rainfallDelta = ((params.rainfall - baseline.rainfall) / 200) * 25;
+    const soilDelta = ((params.soilMoisture - baseline.soilMoisture) / 80) * 20;
+    const slopeDelta = ((params.slope - baseline.slope) / 50) * 20;
+    const historicalDelta = ((params.historicalWeight - baseline.historicalWeight) / 100) * 15;
+    const satelliteDelta = ((params.satelliteWeight - baseline.satelliteWeight) / 80) * 10;
+
+    const totalDelta = rainfallDelta + soilDelta + slopeDelta + historicalDelta + satelliteDelta;
+    const simulatedRisk = Math.max(0, Math.min(100, Math.round(baselineRisk + totalDelta)));
+
+    const getLevel = (score) => {
+      if (score >= 80) return 'WARNING';
+      if (score >= 60) return 'ALERT';
+      if (score >= 30) return 'WATCH';
+      return 'SAFE';
+    };
+
+    const contributions = {
+      rainfall: Math.round(rainfallDelta),
+      soil: Math.round(soilDelta),
+      slope: Math.round(slopeDelta),
+      historical: Math.round(historicalDelta),
+      satellite: Math.round(satelliteDelta)
+    };
+
+    // Generate projection data for chart
+    const projection = [];
+    const labels = ['Now', '+6h', '+12h', '+18h', '+24h'];
+    for (let i = 0; i < 5; i++) {
+      const progress = i / 4;
+      const riskAtStep = Math.max(0, Math.min(100, Math.round(baselineRisk + totalDelta * progress)));
+      projection.push({
+        label: labels[i],
+        risk: riskAtStep
+      });
+    }
+
+    return {
+      baseline: { risk: baselineRisk, level: getLevel(baselineRisk) },
+      simulated: { risk: simulatedRisk, level: getLevel(simulatedRisk) },
+      delta: Math.round(totalDelta),
+      contributions,
+      projection,
+      isDemo: true
+    };
+  },
+  // ============================================================
+  // LEGACY COMPATIBILITY
+  // ============================================================
+
+  async getLocations() {
+
+    await this._delay(30);
+
+    return (
+      DEMO_DATA.demoLocations || []
+    ).map(loc => ({
+      ...loc,
+      isDemo: true
+    }));
+  },
+
+
+  async getRiskFactorsLegacy(location = 'Tawang') {
+
+    return this.getRiskFactors(
+      location
+    );
+  },
+
+
+  async getRainfallAnalysis(location = 'Tawang') {
+
+    const rainfall =
+      await this.getRainfall(
+        location
+      );
+
+    return {
+      rainfall,
+      isDemo:
+        rainfall.some(
+          r => r.isDemo
+        )
+    };
+  },
+  async addUser(userData) {
+  await this._delay(100);
+
+  const storedUsers = SahayakState.get('users');
+
+  const users = Array.isArray(storedUsers)
+    ? storedUsers
+    : [...(DEMO_DATA.users || [])];
+
+  const newUser = {
+    id: 'USR-' + String(Date.now()).slice(-6),
+    name: userData.name,
+    email: userData.email,
+    phone: userData.phone || '',
+    password: userData.password,
+    role: userData.role,
+    region: userData.region || 'Northeast India',
+    district: userData.district || 'All',
+    status: userData.status || 'active',
+    lastActive: 'Just now',
+    incidents: 0
+  };
+
+  users.unshift(newUser);
+
+  SahayakState.set('users', users);
+
+  SahayakState.addNotification({
+    type: 'info',
+    icon: '👤',
+    title: 'New user created',
+    message: `${newUser.name} added as ${newUser.role.replace('_', ' ')}`,
+    timestamp: 'Just now',
+    read: false
+  });
+
+  return {
+    ...newUser,
+    isDemo: true
+  };
+},
+
+  // ============================================================
+  // LIVE ROUTE RISK
+  // ============================================================
+  // Uses real road geometry from OSRM and the deployed SAHAYAK ML model.
+  // No synthetic route scores are generated here. If either live service is
+  // unavailable, the caller receives an error instead of a fake fallback.
+  async analyzeRoute(startLocation, destination) {
+    // Route analysis deliberately uses live geocoding rather than DEMO_DATA
+    // coordinates so the road route is resolved from the current place-name service.
+    const start = await this._liveGeocode(startLocation);
+    const dest = await this._liveGeocode(destination);
+
+    if (!start || !dest) {
+      return { error: 'Could not resolve the selected locations from live geocoding data.' };
+    }
+
+    const routeUrl = `${this.API.OSRM}/${start.lng},${start.lat};${dest.lng},${dest.lat}` +
+      `?alternatives=true&overview=full&geometries=geojson&steps=true`;
+
+    const routeResponse = await this._safeFetch(routeUrl, null, { timeout: 45000 });
+    if (!routeResponse || routeResponse.code !== 'Ok' || !Array.isArray(routeResponse.routes) || !routeResponse.routes.length) {
+      return { error: 'Live road-routing service is unavailable or no road route was found.' };
+    }
+
+    const routes = routeResponse.routes.slice(0, 3);
+    const evaluated = [];
+
+    for (let routeIndex = 0; routeIndex < routes.length; routeIndex++) {
+      const route = routes[routeIndex];
+      const coordinates = Array.isArray(route.geometry?.coordinates)
+        ? route.geometry.coordinates.map(c => [Number(c[1]), Number(c[0])]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+        : [];
+
+      if (coordinates.length < 2) continue;
+
+      const sampled = this._sampleRoutePoints(coordinates, 9);
+      const samplePoints = sampled.map(x => x.point);
+      const liveSamples = [];
+
+      for (const point of samplePoints) {
+        const score = await this._fetchRouteRiskPoint(point[0], point[1]);
+        if (!score) {
+          return { error: 'Live SAHAYAK risk model is unavailable. Route risk cannot be calculated without live model data.' };
+        }
+        liveSamples.push({ lat: point[0], lng: point[1], ...score });
+      }
+
+      const segments = [];
+      for (let i = 0; i < samplePoints.length - 1; i++) {
+        const a = samplePoints[i];
+        const b = samplePoints[i + 1];
+        const s1 = liveSamples[i];
+        const s2 = liveSamples[i + 1];
+        const risk = Math.round((Number(s1.risk_score) + Number(s2.risk_score)) / 2);
+        const level = this._routeRiskLevel(risk);
+        const distance = this._haversineKm(a[0], a[1], b[0], b[1]);
+        const factorText = this._routeFactorReason(s1, s2, level);
+
+        segments.push({
+          id: `route-${routeIndex}-${i + 1}`,
+          name: this._routeSegmentName(route, i, samplePoints.length),
+          risk,
+          level,
+          distance: Number(distance.toFixed(1)),
+          reason: factorText,
+          source: s1.source || 'SAHAYAK ML model',
+          isLive: true,
+          from: a,
+          to: b,
+          geometry: coordinates.slice(sampled[i].index, sampled[i + 1].index + 1)
+            .map(c => [Number(c[0]), Number(c[1])])
+        });
+      }
+
+      const overallRisk = Math.round(
+        segments.reduce((sum, s) => sum + s.risk, 0) / Math.max(segments.length, 1)
+      );
+      const maxRisk = Math.max(...segments.map(s => s.risk));
+      const overallLevel = this._routeRiskLevel(Math.max(overallRisk, maxRisk * 0.85));
+      const topFactorMap = new Map();
+      liveSamples.forEach(sample => {
+        (sample.top_factors || []).forEach(f => {
+          const key = f.feature || f.label || 'Risk factor';
+          const contribution = Math.abs(Number(f.contribution || 0));
+          topFactorMap.set(key, Math.max(topFactorMap.get(key) || 0, contribution));
+        });
+      });
+      const riskFactors = [...topFactorMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([label, contribution]) => ({
+          label: this._prettyFeature(label),
+          value: Math.max(1, Math.round(contribution * 100)),
+          description: 'Live model factor contribution'
+        }));
+
+      evaluated.push({
+        id: `route-${routeIndex}`,
+        name: routeIndex === 0 ? 'Primary road route' : `Alternative road route ${routeIndex}`,
+        distance: Number((route.distance / 1000).toFixed(1)),
+        time: Math.round(route.duration / 60),
+        overallRisk,
+        maxRisk,
+        level: overallLevel,
+        waypoints: coordinates,
+        geometry: route.geometry,
+        steps: route.legs?.flatMap(l => l.steps || []) || [],
+        segments,
+        riskFactors,
+        isLive: true,
+        source: 'OSRM / OpenStreetMap + SAHAYAK ML model'
+      });
+    }
+
+    if (!evaluated.length) {
+      return { error: 'Live routing returned no usable road geometry.' };
+    }
+
+    // Keep two routes for compatibility with the existing UI. If only one
+    // route is returned by OSRM, the same route is not duplicated; we expose
+    // an unavailable alternative instead.
+    const sortedByRisk = [...evaluated].sort((a, b) => a.overallRisk - b.overallRisk);
+    const lowestRisk = sortedByRisk[0];
+    const shortest = [...evaluated].sort((a, b) => a.distance - b.distance)[0];
+    const fastest = [...evaluated].sort((a, b) => a.time - b.time)[0];
+    const primary = lowestRisk;
+    const alternative = evaluated.find(r => r.id !== primary.id) || evaluated.find(r => r.id !== shortest.id) || null;
+
+    return {
+      start: start.name || startLocation,
+      destination: dest.name || destination,
+      startCoordinates: [start.lat, start.lng],
+      destinationCoordinates: [dest.lat, dest.lng],
+      primary,
+      alternative,
+      routes: evaluated,
+      routeSummary: { lowestRisk: lowestRisk.id, shortest: shortest.id, fastest: fastest.id },
+      riskFactors: primary.riskFactors,
+      isLive: true,
+      retrievedAt: new Date().toISOString(),
+      sources: ['OSRM / OpenStreetMap', 'SAHAYAK ML model']
+    };
+  },
+
+  _sampleRoutePoints(coordinates, count = 9) {
+    const points = [];
+    if (coordinates.length <= count) {
+      return coordinates.map((point, index) => ({ point, index }));
+    }
+    for (let i = 0; i < count; i++) {
+      const idx = Math.round(i * (coordinates.length - 1) / (count - 1));
+      points.push({ point: coordinates[idx], index: idx });
+    }
+    return points;
+  },
+
+  async _fetchRouteRiskPoint(lat, lng) {
+    const url = `${this.ML_API_BASE}/risk-score?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`;
+    const data = await this._safeFetch(url, null, { timeout: 60000 });
+    if (!data || !Number.isFinite(Number(data.risk_score))) return null;
+    return {
+      risk_score: Math.max(0, Math.min(100, Number(data.risk_score))),
+      risk_level: data.risk_level || null,
+      top_factors: Array.isArray(data.top_factors) ? data.top_factors : [],
+      source: data.source || 'SAHAYAK ML model'
+    };
+  },
+
+  _routeRiskLevel(score) {
+    if (score >= 81) return 'CRITICAL';
+    if (score >= 61) return 'HIGH';
+    if (score >= 31) return 'WATCH';
+    return 'SAFE';
+  },
+
+  _routeSegmentName(route, index, total) {
+    const steps = route.legs?.flatMap(l => l.steps || []) || [];
+    const named = steps.map(s => s.name).filter(Boolean);
+    if (named.length) return named[Math.min(index, named.length - 1)];
+    return `Road segment ${index + 1} of ${total - 1}`;
+  },
+
+  _routeFactorReason(a, b, level) {
+    const factors = [...(a.top_factors || []), ...(b.top_factors || [])]
+      .map(f => f.feature || f.label)
+      .filter(Boolean);
+    if (factors.length) return `${this._prettyFeature(factors[0])} contributes to the live modeled hazard.`;
+    return `${level} current modeled hazard along this road segment.`;
+  },
+
+  // ============================================================
+  // LIVE INFRASTRUCTURE / EXPOSURE — GOOGLE PLACES
+  // ============================================================
+  // Infrastructure comes from Google Places API (New) through our same-origin
+  // Vercel proxy. This keeps the API key server-side and removes the previous
+  // OpenStreetMap/Overpass dependency from this page.
+  //
+  // Google Places supports hospitals, schools, police, fire stations and
+  // other POI categories. Roads are intentionally not fabricated here because
+  // Places is a POI service; the Route Risk page is responsible for road
+  // routing and road-segment hazard analysis.
+
+  LIVE_INFRA: {
+    PROVIDER: 'Google Places API (New)'
+  },
+
+  async _liveGeocode(locationName) {
+    const query = String(locationName || '').trim();
+    if (!query) return null;
+    const url = `${this.API.OPEN_METEO_GEOCODING}?name=${encodeURIComponent(query)}&count=1&language=en&format=json&countryCode=IN`;
+    const data = await this._safeFetch(url, null, { timeout: 15000 });
+    const place = data?.results?.[0];
+    if (!place || !Number.isFinite(Number(place.latitude)) || !Number.isFinite(Number(place.longitude))) return null;
+    return {
+      lat: Number(place.latitude),
+      lng: Number(place.longitude),
+      name: place.name || query,
+      state: place.admin1 || '',
+      district: place.admin2 || '',
+      country: place.country || 'India',
+      elevation: place.elevation ?? null,
+      source: 'Open-Meteo Geocoding'
+    };
+  },
+
+  _haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  async _googlePlacesNearby(lat, lng, type, radius = 5000) {
+    const data = await this._safeFetch('/api/google-places', {
+      error: 'Google Places service unavailable'
+    }, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'nearby', lat, lng, radius, type })
+    });
+    return Array.isArray(data?.places) ? data.places : [];
+  },
+
+  async _googlePlacesText(textQuery, lat, lng, radius = 5000) {
+    const data = await this._safeFetch('/api/google-places', {
+      error: 'Google Places service unavailable'
+    }, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'text', textQuery, lat, lng, radius })
+    });
+    return Array.isArray(data?.places) ? data.places : [];
+  },
+
+  _normalizeGooglePlace(place, type, coords, risk) {
+    const loc = place.location || {};
+    const lat = Number(loc.latitude);
+    const lng = Number(loc.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const distance = this._haversineKm(coords.lat, coords.lng, lat, lng);
+    if (distance > 5.1) return null;
+    const name = place.displayName?.text || place.formattedAddress || type;
+    const rawTypes = Array.isArray(place.types) ? place.types : [];
+    let normalized = type;
+    if (rawTypes.includes('hospital') || rawTypes.includes('general_hospital') || rawTypes.includes('medical_center')) normalized = 'hospital';
+    else if (rawTypes.includes('school') || rawTypes.includes('primary_school') || rawTypes.includes('secondary_school')) normalized = 'school';
+    else if (rawTypes.includes('police')) normalized = 'police';
+    else if (rawTypes.includes('fire_station')) normalized = 'fire';
+    else if (type === 'relief') normalized = 'relief';
+    else if (type === 'bridge') normalized = 'bridge';
+    else if (type === 'village') normalized = 'village';
+
+    return {
+      id: place.id || `${normalized}-${lat}-${lng}`,
+      type: normalized,
+      name,
+      distance: Math.round(distance * 10) / 10,
+      lat,
+      lng,
+      address: place.formattedAddress || '',
+      status: 'LIVE PLACE RECORD',
+      source: 'Google Places API (New)',
+      placeId: place.id || null,
+      rating: place.rating ?? null,
+      userRatingCount: place.userRatingCount ?? null,
+      riskContext: risk?.level || 'UNASSESSED'
+    };
+  },
+
+  async _getLiveRiskByPlace(locationName) {
+    const url = `${this.ML_API_BASE}/risk-score-by-place?place=${encodeURIComponent(locationName)}`;
+    const model = await this._safeFetch(url, null, { timeout: 80000 });
+    if (!model || !Number.isFinite(Number(model.risk_score))) return null;
+    const score = Math.max(0, Math.min(100, Number(model.risk_score)));
+    const raw = String(model.risk_level || '').toLowerCase();
+    const level = ['critical', 'high', 'medium', 'moderate', 'watch', 'low', 'safe'].includes(raw)
+      ? (raw === 'medium' || raw === 'moderate' ? 'WATCH' : raw.toUpperCase())
+      : this._levelFromRisk(score);
+    return {
+      score,
+      level,
+      factors: Array.isArray(model.top_factors) ? model.top_factors : [],
+      source: model.source || 'SAHAYAK ML model',
+      timestamp: new Date().toISOString(),
+      lat: Number.isFinite(Number(model.lat)) ? Number(model.lat) : null,
+      lng: Number.isFinite(Number(model.lon)) ? Number(model.lon) : null
+    };
+  },
+
+  async _getLiveWeather(lat, lng) {
+    const url = `${this.API.OPEN_METEO}?latitude=${lat}&longitude=${lng}&current=precipitation,rain,showers,weather_code&hourly=precipitation&past_days=1&forecast_days=1&timezone=auto`;
+    const data = await this._safeFetch(url, null, { timeout: 15000 });
+    if (!data) return null;
+    const now = Date.now();
+    const hourly = data.hourly?.time || [];
+    const precip = data.hourly?.precipitation || [];
+    let last24 = 0;
+    hourly.forEach((t, i) => {
+      const ts = Date.parse(t);
+      if (Number.isFinite(ts) && ts <= now && ts >= now - 24 * 60 * 60 * 1000) last24 += Number(precip[i] || 0);
+    });
+    return {
+      currentPrecipitation: Number(data.current?.precipitation || 0),
+      last24hMm: Math.round(last24 * 10) / 10,
+      retrievedAt: new Date().toISOString(),
+      source: 'Open-Meteo'
+    };
+  },
+
+  async getLiveInfrastructureBundle(locationName = 'Tawang') {
+    const retrievedAt = new Date().toISOString();
+    const coords = await this._liveGeocode(locationName);
+    if (!coords) return { error: 'Could not resolve this location', isLive: false };
+
+    const [risk, weather] = await Promise.all([
+      this._getLiveRiskByPlace(locationName),
+      this._getLiveWeather(coords.lat, coords.lng)
+    ]);
+
+    const placeTypes = [
+      ['hospital', ['hospital', 'general_hospital']],
+      ['school', ['school', 'primary_school', 'secondary_school']],
+      ['police', ['police']],
+      ['fire', ['fire_station']]
+    ];
+
+    let placeResults;
+    try {
+      const batches = await Promise.all(placeTypes.flatMap(([kind, types]) =>
+        types.map(type => this._googlePlacesNearby(coords.lat, coords.lng, type, 5000)
+          .then(places => places.map(p => ({ p, kind }))))
+      ));
+      placeResults = batches.flat();
+    } catch (e) {
+      console.error('Google Places nearby failed', e);
+      return { error: 'Google Places infrastructure service is unavailable', isLive: false, provider: 'Google Places API (New)' };
+    }
+
+    const infrastructure = [];
+    const seen = new Set();
+    for (const item of placeResults) {
+      const normalized = this._normalizeGooglePlace(item.p, item.kind, coords, risk);
+      if (!normalized || seen.has(normalized.id)) continue;
+      seen.add(normalized.id);
+      infrastructure.push(normalized);
+    }
+
+    // Text search is used only for categories that Google Nearby Search does
+    // not expose as filterable infrastructure types in Places API (New).
+    // Results remain explicitly labelled as Google Places text matches.
+    const [reliefPlaces, bridgePlaces, villagePlaces] = await Promise.all([
+      this._googlePlacesText(`relief center near ${coords.name}, ${coords.state}`, coords.lat, coords.lng, 5000),
+      this._googlePlacesText(`bridge near ${coords.name}, ${coords.state}`, coords.lat, coords.lng, 5000),
+      this._googlePlacesText(`village near ${coords.name}, ${coords.state}`, coords.lat, coords.lng, 5000)
+    ]);
+
+    const addTextResults = (places, type) => {
+      places.forEach(p => {
+        const normalized = this._normalizeGooglePlace(p, type, coords, risk);
+        if (!normalized || seen.has(normalized.id)) return;
+        seen.add(normalized.id);
+        infrastructure.push(normalized);
+      });
+    };
+    addTextResults(reliefPlaces, 'relief');
+    addTextResults(bridgePlaces, 'bridge');
+
+    const villages = villagePlaces.map(p => this._normalizeGooglePlace(p, 'village', coords, risk)).filter(Boolean);
+
+    infrastructure.sort((a, b) => a.distance - b.distance);
+    villages.sort((a, b) => a.distance - b.distance);
+
+    const counts = {
+      hospitals: infrastructure.filter(i => i.type === 'hospital').length,
+      schools: infrastructure.filter(i => i.type === 'school').length,
+      police: infrastructure.filter(i => i.type === 'police').length,
+      fire: infrastructure.filter(i => i.type === 'fire').length,
+      relief: infrastructure.filter(i => i.type === 'relief').length,
+      bridges: infrastructure.filter(i => i.type === 'bridge').length,
+      villages: villages.length,
+      roads: 0
+    };
+
+    // Google Places is not a road-network API. Do not invent road counts.
+    const roads = [];
+    const population = null;
+    const riskScore = risk?.score ?? null;
+    const facilityComponent = Math.min(20, (counts.hospitals * 4) + (counts.schools * 2) + (counts.bridges * 2));
+    const hazardComponent = riskScore == null ? 0 : Math.round(riskScore * 0.5);
+    const priorityScore = riskScore == null ? null : Math.min(100, hazardComponent + facilityComponent);
+    const priorityLevel = priorityScore == null ? 'UNASSESSED' : priorityScore >= 80 ? 'CRITICAL' : priorityScore >= 60 ? 'HIGH' : priorityScore >= 40 ? 'MODERATE' : 'LOW';
+
+    const factors = [
+      { label: 'Current model hazard', value: hazardComponent },
+      { label: 'Critical facilities', value: facilityComponent }
+    ].filter(f => f.value > 0);
+
+    const exposure = {
+      population,
+      villages: counts.villages,
+      roads: null,
+      schools: counts.schools,
+      hospitals: counts.hospitals,
+      bridges: counts.bridges
+    };
+
+    return {
+      isLive: true,
+      retrievedAt,
+      radiusKm: 5,
+      coords,
+      risk: riskScore,
+      riskLevel: risk?.level || 'UNAVAILABLE',
+      riskSource: risk?.source || 'SAHAYAK ML model unavailable',
+      riskTimestamp: risk?.timestamp || null,
+      riskFactors: risk?.factors || [],
+      weather,
+      exposure,
+      populationSource: 'Google Places does not provide authoritative population totals; no synthetic estimate is used.',
+      infrastructure,
+      villages,
+      roads,
+      emergency: {
+        police: counts.police,
+        relief: counts.relief,
+        hospitals: counts.hospitals,
+        fire: counts.fire,
+        nearest: infrastructure.find(i => ['hospital','police','fire','relief'].includes(i.type)) || null
+      },
+      priority: {
+        score: priorityScore,
+        level: priorityLevel,
+        factors,
+        source: 'SAHAYAK derived priority index from live model + Google Places facilities'
+      },
+      sources: [
+        { name: 'Google Places API (New)', status: 'live', retrievedAt },
+        { name: 'Open-Meteo', status: weather ? 'live' : 'unavailable', retrievedAt: weather?.retrievedAt || null },
+        { name: 'SAHAYAK ML model', status: risk ? 'live' : 'unavailable', retrievedAt: risk?.timestamp || null }
+      ]
+    };
+  },
+
+
+};
+
+
+// ============================================================
+// GLOBAL EXPORT
+// ============================================================
+
+if (typeof window !== 'undefined') {
+  window.Services = Services;
+}
