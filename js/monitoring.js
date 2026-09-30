@@ -223,15 +223,22 @@
   }
 
   // ============ RAINFALL ============
-  function renderRainfall(r) {
+ function renderRainfall(r) {
     const cards = document.getElementById('rainfallSummaryCards');
     if (!cards) return;
+
+    const weather = state.data?.weather || [];
+    const currentWeather = weather[0] || {};
+
     const items = [
       { label: 'Current', value: r.current, unit: 'mm', status: null },
       { label: '24h Rainfall', value: r.h24, unit: 'mm', status: null },
       { label: '48h Rainfall', value: r.h48, unit: 'mm', status: null },
       { label: '72h Rainfall', value: r.h72, unit: 'mm', status: r.exceeded ? 'high' : null, statusLabel: r.exceeded ? 'Threshold Exceeded' : 'Normal' },
-      { label: '7 Day Rainfall', value: r.h7day, unit: 'mm', status: null }
+      { label: '7 Day Rainfall', value: r.h7day, unit: 'mm', status: null },
+     { label: 'Wind Speed', value: Number(currentWeather.windSpeed ?? 0).toFixed(1), unit: 'km/h', status: null },
+{ label: 'Rain Probability', value: Number(currentWeather.precipitationProbability ?? 0).toFixed(0), unit: '%', status: null },
+{ label: 'Wind Gusts', value: Number(currentWeather.windGusts ?? 0).toFixed(1), unit: 'km/h', status: null }
     ];
     cards.innerHTML = items.map(i => `
         <div class="monitoring-summary-card ${i.status === 'high' ? 'alert-card' : ''}">
@@ -279,10 +286,56 @@
 
     // Source caption
     const captionEl = document.getElementById('rainfallSourceCaption');
-    if (captionEl) {
+        if (captionEl) {
       captionEl.textContent = r.isDemo
         ? 'Source: Demo rainfall data (live Open-Meteo fetch unavailable for this location)'
         : 'Source: Open-Meteo precipitation data (live)';
+    }
+
+    // 6-hour severe weather forecast
+    const forecastContainer = document.getElementById('weatherForecast6h');
+
+    if (forecastContainer) {
+        if (!weather.length) {
+            forecastContainer.innerHTML = `
+                <div class="chart-caption">
+                    Live weather forecast unavailable.
+                </div>
+            `;
+            return;
+        }
+
+        forecastContainer.innerHTML = `
+            <div class="weather-forecast-grid">
+                ${weather.slice(0, 6).map(w => `
+                    <div class="weather-forecast-card">
+                        <div class="weather-forecast-time">
+                            ${w.hour}
+                        </div>
+
+                        <div class="weather-forecast-value">
+                            ${Number(w.rainfall ?? 0).toFixed(1)} mm
+                        </div>
+
+                        <div class="weather-forecast-label">
+                            Rainfall
+                        </div>
+
+                        <div class="weather-forecast-detail">
+                            ${Number(w.precipitationProbability ?? 0).toFixed(0)}% rain probability
+                        </div>
+
+                        <div class="weather-forecast-detail">
+                            ${Number(w.windSpeed ?? 0).toFixed(1)} km/h wind
+                        </div>
+
+                        <div class="weather-forecast-detail">
+                            ${Number(w.windGusts ?? 0).toFixed(1)} km/h gusts
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
     }
   }
 
@@ -301,7 +354,7 @@
       // Label as "hours ago" relative to now, since live data
       // is anchored to the current moment rather than midnight.
       const hoursAgo = data.hourly.length - 1 - i;
-      return hoursAgo === 0 ? 'Now' : `-${hoursAgo}h`;
+return hoursAgo === 0 ? 'Now' : `${hoursAgo}h ago`;
     });
 
     state.charts.rainfall = new Chart(canvas, {

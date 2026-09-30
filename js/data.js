@@ -788,35 +788,40 @@ const DEMO_DATA = {
         }
     ],
     alerts: [
-        {
-            id: 'ALT-001', severity: 'warning', type: 'Landslide Risk Warning',
-            location: 'Churachandpur', state: 'Manipur',
-            risk: 88, message: 'Heavy rainfall + saturated soil + steep slope',
-            population: 1580, roads: 2, schools: 2, hospitals: 1,
-            timestamp: '12 min ago', read: false
-        },
-        {
-            id: 'ALT-002', severity: 'warning', type: 'Landslide Risk Warning',
-            location: 'Tawang', state: 'Arunachal Pradesh',
-            risk: 84, message: 'Heavy rainfall + saturated soil + steep slope',
-            population: 1240, roads: 3, schools: 2, hospitals: 1,
-            timestamp: '28 min ago', read: false
-        },
-        {
-            id: 'ALT-003', severity: 'alert', type: 'Risk Elevation',
-            location: 'Upper Subansiri', state: 'Arunachal Pradesh',
-            risk: 76, message: 'Rising soil moisture with steep terrain',
-            population: 680, roads: 2, schools: 1, hospitals: 0,
-            timestamp: '1 hr ago', read: false
-        },
-        {
-            id: 'ALT-004', severity: 'alert', type: 'Risk Elevation',
-            location: 'East Siang', state: 'Arunachal Pradesh',
-            risk: 72, message: 'Satellite anomaly detected with rising rainfall',
-            population: 860, roads: 2, schools: 1, hospitals: 1,
-            timestamp: '2 hr ago', read: true
-        }
-    ],
+
+    {
+        id: 'ALT-001', severity: 'warning', type: 'Severe Weather Warning',
+        location: 'Churachandpur', state: 'Manipur',
+        risk: 88, message: 'Heavy rainfall + unstable atmospheric conditions',
+        population: 1580,
+        timestamp: '12 min ago', read: false
+    },
+
+    {
+        id: 'ALT-002', severity: 'warning', type: 'Heavy Rainfall Warning',
+        location: 'Tawang', state: 'Arunachal Pradesh',
+        risk: 84, message: 'High rainfall intensity with increasing weather risk',
+        population: 1240,
+        timestamp: '28 min ago', read: false
+    },
+
+    {
+        id: 'ALT-003', severity: 'alert', type: 'Weather Risk Elevation',
+        location: 'Upper Subansiri', state: 'Arunachal Pradesh',
+        risk: 76, message: 'Increasing rainfall with elevated severe weather risk',
+        population: 680,
+        timestamp: '1 hr ago', read: false
+    },
+
+    {
+        id: 'ALT-004', severity: 'alert', type: 'Severe Weather Risk Elevation',
+        location: 'East Siang', state: 'Arunachal Pradesh',
+        risk: 72, message: 'Satellite/weather anomaly with rising rainfall',
+        population: 860,
+        timestamp: '2 hr ago', read: true
+    }
+
+],
 
     fieldReports: [
         { id: 'FR-001', location: 'Tawang', type: 'Field Report', status: 'submitted', officer: 'Officer R. Singh', timestamp: '8 min ago' },
@@ -837,12 +842,10 @@ const DEMO_DATA = {
     ],
 
     dataFreshness: [
-        { source: 'Rainfall', status: 'fresh', updated: '12 min ago' },
-        { source: 'Satellite', status: 'delayed', updated: '4 hours ago' },
-        { source: 'Historical Data', status: 'fresh', updated: 'yesterday' },
-        { source: 'AI Prediction', status: 'fresh', updated: '5 min ago' },
-        { source: 'Infrastructure', status: 'fresh', updated: '18 min ago' }
-    ],
+    { source: 'Open-Meteo Weather Forecast', status: 'fresh', updated: 'Live forecast' },
+    { source: 'Satellite Imagery', status: 'fresh', updated: 'Available' },
+    { source: 'Historical Data', status: 'fresh', updated: 'Context data' }
+],
 
     exposureSummary: {
         population: 24680,
@@ -980,7 +983,7 @@ const DEMO_DATA = {
   // ===== ALERTS DATA =====
 alerts: [
     {
-      id: 'SAH-ALR-0001', severity: 'critical', type: 'Landslide Risk Warning',
+      id: 'SAH-ALR-0001', severity: 'critical',type: 'Severe Weather Warning',
       location: 'Tawang', state: 'Arunachal Pradesh', lat: 27.586, lng: 91.859,
       risk: 88, message: 'Heavy rainfall + saturated soil + steep slope',
       population: 1240, roads: 3, schools: 2, hospitals: 1, bridges: 1, villages: 4,
@@ -1003,7 +1006,7 @@ alerts: [
       assignedOfficer: null, read: false
     },
     {
-      id: 'SAH-ALR-0002', severity: 'critical', type: 'Landslide Risk Warning',
+      id: 'SAH-ALR-0002', severity: 'critical', type: 'Severe Weather Warning',
       location: 'Churachandpur', state: 'Manipur', lat: 24.33, lng: 93.68,
       risk: 92, message: 'Extreme rainfall + historical landslide zone',
       population: 1580, roads: 2, schools: 2, hospitals: 1, bridges: 1, villages: 5,

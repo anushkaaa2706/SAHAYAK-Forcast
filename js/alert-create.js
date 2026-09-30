@@ -224,7 +224,7 @@
 
   await Services.createAlert({
     severity: state.formData.severity,
-    type: 'Landslide Risk Warning',
+    type: 'Severe Weather Warning',
     location: state.formData.location,
     state: zone?.state || '',
     lat: zone?.lat || 0,

@@ -244,77 +244,394 @@ _prettyFeature(name) {
  
 // One zone -> one call to the deployed model. Cached for 10 minutes
 // per browser tab so reloading the map does not hit the API again.
-async _fetchZoneModelScore(zone) {
-  const cacheKey = `sahayak_zone_score_${zone.id}`;
-  const TTL = 10 * 60 * 1000;
- 
-  try {
-    const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
-    if (cached && Date.now() - cached.at < TTL) return cached.data;
-  } catch (e) { /* storage unavailable, ignore */ }
- 
-  const url = `${this.ML_API_BASE}/risk-score?lat=${zone.lat}&lon=${zone.lng}`;
-  const data = await this._safeFetch(url, null, { timeout: 60000 });
- 
-  if (!data || !Number.isFinite(Number(data.risk_score))) return null;
- 
-  try {
-    sessionStorage.setItem(cacheKey, JSON.stringify({ at: Date.now(), data }));
-  } catch (e) { /* ignore */ }
- 
-  return data;
+async _fetchZoneSevereWeatherScore(zone) {
+
+    const cacheKey = `sahayak_severe_weather_${zone.id}`;
+    const TTL = 10 * 60 * 1000;
+
+    try {
+        const cached = JSON.parse(
+            sessionStorage.getItem(cacheKey) || 'null'
+        );
+
+        if (cached && Date.now() - cached.at < TTL) {
+            return cached.data;
+        }
+    } catch (e) {
+        // Storage unavailable, ignore
+    }
+
+    const url =
+        `${this.API.OPEN_METEO}` +
+        `?latitude=${encodeURIComponent(zone.lat)}` +
+        `&longitude=${encodeURIComponent(zone.lng)}` +
+        `&hourly=precipitation,rain,soil_moisture_0_to_7cm,` +
+        `relative_humidity_2m,cloud_cover,precipitation_probability,` +
+        `wind_speed_10m,wind_gusts_10m,weather_code,temperature_2m` +
+        `&forecast_days=2` +
+        `&timezone=auto`;
+
+    const data = await this._safeFetch(url, null);
+
+    if (!data?.hourly?.time?.length) {
+        return null;
+    }
+
+    const hourly = data.hourly;
+    const times = hourly.time || [];
+
+    const precipitation = hourly.precipitation || [];
+    const soilMoisture = hourly.soil_moisture_0_to_7cm || [];
+    const humidity = hourly.relative_humidity_2m || [];
+    const cloudCover = hourly.cloud_cover || [];
+    const precipitationProbability =
+        hourly.precipitation_probability || [];
+    const windSpeed = hourly.wind_speed_10m || [];
+    const windGusts = hourly.wind_gusts_10m || [];
+    const weatherCode = hourly.weather_code || [];
+    const temperature = hourly.temperature_2m || [];
+
+    const now = new Date();
+
+    let currentIndex = times.findIndex(time =>
+        new Date(time) >= now
+    );
+
+    if (currentIndex === -1) {
+        currentIndex = 0;
+    }
+
+    /*
+     * Use the next 6 hours.
+     * This keeps Dashboard/Risk Map consistent
+     * with the Risk Analysis page.
+     */
+    const forecast = times
+        .slice(currentIndex, currentIndex + 6)
+        .map((time, index) => {
+
+            const i = currentIndex + index;
+
+            const rain = Number(precipitation[i] || 0);
+            const prob = Number(
+                precipitationProbability[i] || 0
+            );
+            const hum = Number(humidity[i] || 0);
+            const cloud = Number(cloudCover[i] || 0);
+            const wind = Number(windSpeed[i] || 0);
+            const gust = Number(windGusts[i] || 0);
+            const code = Number(weatherCode[i] ?? -1);
+
+            let score = 0;
+
+            // Rainfall intensity
+            score += Math.min(30, rain * 3);
+
+            // Probability of precipitation
+            score += prob * 0.20;
+
+            // High humidity
+            score += Math.min(
+                10,
+                Math.max(0, hum - 70) * 0.33
+            );
+
+            // Cloud cover
+            score += cloud * 0.10;
+
+            // Wind speed
+            score += Math.min(10, wind * 0.25);
+
+            // Wind gusts
+            score += Math.min(10, gust * 0.15);
+
+            // WMO thunderstorm codes
+            if ([95, 96, 99].includes(code)) {
+                score += 10;
+            }
+
+            score = Math.round(
+                Math.max(0, Math.min(100, score))
+            );
+
+            return {
+                timestamp: time,
+                hour: new Date(time).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+                rainfall: rain,
+                soilMoisture: Number(
+                    soilMoisture[i] || 0
+                ),
+                humidity: hum,
+                cloudCover: cloud,
+                precipitationProbability: prob,
+                windSpeed: wind,
+                windGusts: gust,
+                weatherCode: code,
+                temperature: Number(
+                    temperature[i] || 0
+                ),
+                risk: score
+            };
+        });
+
+    if (!forecast.length) {
+        return null;
+    }
+
+    /*
+     * The map score represents the highest severe-weather
+     * risk expected during the next 6 hours.
+     */
+    const maxRisk = Math.max(
+        ...forecast.map(f => f.risk)
+    );
+
+    const peak = forecast.reduce(
+        (highest, current) =>
+            current.risk > highest.risk
+                ? current
+                : highest,
+        forecast[0]
+    );
+
+    const result = {
+        risk_score: maxRisk,
+
+        rainfall: peak.rainfall,
+        soilMoisture: peak.soilMoisture,
+        humidity: peak.humidity,
+        cloudCover: peak.cloudCover,
+        precipitationProbability:
+            peak.precipitationProbability,
+        windSpeed: peak.windSpeed,
+        windGusts: peak.windGusts,
+        weatherCode: peak.weatherCode,
+        temperature: peak.temperature,
+
+        forecast,
+        isLive: true,
+        isDemo: false,
+
+        source: 'Open-Meteo',
+        updatedAt: new Date().toISOString()
+    };
+
+    try {
+        sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+                at: Date.now(),
+                data: result
+            })
+        );
+    } catch (e) {
+        // Ignore storage errors
+    }
+
+    return result;
 },
  
 // (3) REPLACE the old getAllRiskZones() (the one that returns DEMO_DATA)
 // with this one. Delete the old version so there is only one.
 async getAllRiskZones() {
-  const zones = DEMO_DATA.riskZones || [];
-  if (!zones.length) return [];
- 
-  const results = new Array(zones.length).fill(null);
- 
-  // First request goes alone: it wakes the Render instance if it is asleep.
-  results[0] = await this._fetchZoneModelScore(zones[0]);
- 
-  if (!results[0]) {
-    console.warn('ML API not reachable, risk map is showing demo scores');
-    return zones.map(z => ({ ...z, isDemo: true }));
-  }
- 
-  // Remaining zones in small batches so the API's terrain lookup
-  // does not get rate limited.
-  const BATCH = 3;
-  for (let i = 1; i < zones.length; i += BATCH) {
-    const chunk = zones.slice(i, i + BATCH);
-    const out = await Promise.all(chunk.map(z => this._fetchZoneModelScore(z)));
-    out.forEach((r, j) => { results[i + j] = r; });
-  }
- 
-  // Write live values back into DEMO_DATA.riskZones itself, because
-  // risk-map.js (filters, search, info panel) reads that array directly.
-  zones.forEach((zone, i) => {
-    const live = results[i];
-    if (!live) { zone.isLive = false; return; }
- 
-    const score = Math.max(0, Math.min(100, Math.round(Number(live.risk_score))));
-    zone.risk = score;
-    zone.level = this._mapLevelFromRisk(score);
-    zone.modelRiskLevel = live.risk_level;
-    zone.isLive = true;
-    zone.liveUpdated = new Date().toISOString();
- 
-    if (Array.isArray(live.top_factors) && live.top_factors.length) {
-      zone.factors = live.top_factors.map(f => {
-        const c = Number(f.contribution || 0);
-        return {
-          label: this._prettyFeature(f.feature) + (c < 0 ? ' (lowers risk)' : ''),
-          value: Math.round(Math.abs(c) * 100)
-        };
-      });
+
+    const zones = DEMO_DATA.riskZones || [];
+
+    if (!zones.length) {
+        return [];
     }
-  });
- 
-  return zones.map(z => ({ ...z, isDemo: !z.isLive }));
+
+    const results = new Array(zones.length).fill(null);
+
+    /*
+     * Fetch live Open-Meteo data.
+     * Small batches avoid sending too many
+     * requests at once.
+     */
+    const BATCH = 3;
+
+    for (let i = 0; i < zones.length; i += BATCH) {
+
+        const chunk = zones.slice(i, i + BATCH);
+
+        const out = await Promise.all(
+            chunk.map(zone =>
+                this._fetchZoneSevereWeatherScore(zone)
+            )
+        );
+
+        out.forEach((result, j) => {
+            results[i + j] = result;
+        });
+    }
+
+    /*
+     * Update the existing risk-zone objects.
+     * Risk Map already reads DEMO_DATA.riskZones,
+     * so both Dashboard and Risk Map get the
+     * same live score.
+     */
+    zones.forEach((zone, i) => {
+
+        const live = results[i];
+
+        if (!live) {
+            zone.isLive = false;
+            zone.isDemo = true;
+            return;
+        }
+
+        const score = Math.max(
+            0,
+            Math.min(
+                100,
+                Math.round(Number(live.risk_score))
+            )
+        );
+
+        zone.risk = score;
+
+        // Keep your existing SAFE/WATCH/ALERT/WARNING thresholds
+        zone.level = this._mapLevelFromRisk(score);
+
+        zone.isLive = true;
+        zone.isDemo = false;
+
+        zone.liveUpdated =
+            live.updatedAt;
+
+        /*
+         * Store the live severe-weather values
+         * so Dashboard/Risk Map panels can use them.
+         */
+        zone.rainfall = live.rainfall;
+        zone.soilMoisture = live.soilMoisture;
+        zone.humidity = live.humidity;
+        zone.cloudCover = live.cloudCover;
+        zone.precipitationProbability =
+            live.precipitationProbability;
+        zone.windSpeed = live.windSpeed;
+        zone.windGusts = live.windGusts;
+        zone.weatherCode = live.weatherCode;
+        zone.temperature = live.temperature;
+
+        zone.severeWeatherForecast =
+            live.forecast;
+
+        zone.dataSource = 'Open-Meteo';
+
+        /*
+         * Factors used by the Dashboard
+         * "Why is this area at elevated weather risk?"
+         */
+        const factors = [];
+
+        if (live.rainfall > 0) {
+            factors.push({
+                label: 'Rainfall intensity',
+                value: Math.round(
+                    Math.min(30, live.rainfall * 3)
+                )
+            });
+        }
+
+        if (live.precipitationProbability > 0) {
+            factors.push({
+                label: 'Rain probability',
+                value: Math.round(
+                    live.precipitationProbability * 0.20
+                )
+            });
+        }
+
+        if (live.cloudCover > 0) {
+            factors.push({
+                label: 'Cloud cover',
+                value: Math.round(
+                    live.cloudCover * 0.10
+                )
+            });
+        }
+
+        if (live.humidity > 70) {
+            factors.push({
+                label: 'High humidity',
+                value: Math.round(
+                    Math.min(
+                        10,
+                        (live.humidity - 70) * 0.33
+                    )
+                )
+            });
+        }
+
+        if (live.windSpeed > 0) {
+            factors.push({
+                label: 'Wind speed',
+                value: Math.round(
+                    Math.min(
+                        10,
+                        live.windSpeed * 0.25
+                    )
+                )
+            });
+        }
+
+        if (live.windGusts > 0) {
+            factors.push({
+                label: 'Wind gusts',
+                value: Math.round(
+                    Math.min(
+                        10,
+                        live.windGusts * 0.15
+                    )
+                )
+            });
+        }
+
+        if ([95, 96, 99].includes(
+            live.weatherCode
+        )) {
+            factors.push({
+                label: 'Thunderstorm conditions',
+                value: 10
+            });
+        }
+
+        /*
+         * Highest contributing factors first.
+         */
+        factors.sort(
+            (a, b) => b.value - a.value
+        );
+
+        zone.factors = factors;
+
+        /*
+         * Keep a simple weather-event description.
+         */
+        if ([95, 96, 99].includes(live.weatherCode)) {
+            zone.weatherEvent = 'Thunderstorm';
+        } else if (
+            live.windGusts >= 50
+        ) {
+            zone.weatherEvent = 'Strong Wind';
+        } else if (
+            live.rainfall >= 10
+        ) {
+            zone.weatherEvent = 'Heavy Rainfall';
+        } else {
+            zone.weatherEvent = 'No severe event detected';
+        }
+    });
+
+    return zones.map(zone => ({
+        ...zone,
+        isDemo: !zone.isLive
+    }));
 },
  
 
@@ -357,6 +674,92 @@ async getAllRiskZones() {
       timestamp: time,
       isDemo: false
     }));
+
+    return result;
+  },
+    async getSevereWeatherForecast(locationId = 'tawang') {
+
+    const coords = this._getCoordinates(locationId);
+
+    if (!coords) {
+      return [];
+    }
+
+    const url =
+      `${this.API.OPEN_METEO}` +
+      `?latitude=${encodeURIComponent(coords.lat)}` +
+      `&longitude=${encodeURIComponent(coords.lng)}` +
+      `&hourly=precipitation,rain,soil_moisture_0_to_7cm,` +
+      `relative_humidity_2m,cloud_cover,precipitation_probability,` +
+      `wind_speed_10m,wind_gusts_10m,weather_code,temperature_2m` +
+      `&forecast_days=2` +
+      `&timezone=auto`;
+
+    const data = await this._safeFetch(url, null);
+
+    if (!data?.hourly) {
+      return [];
+    }
+
+    const hourly = data.hourly;
+    const times = hourly.time || [];
+
+    const precipitation = hourly.precipitation || [];
+    const soilMoisture = hourly.soil_moisture_0_to_7cm || [];
+    const humidity = hourly.relative_humidity_2m || [];
+    const cloudCover = hourly.cloud_cover || [];
+    const precipitationProbability = hourly.precipitation_probability || [];
+    const windSpeed = hourly.wind_speed_10m || [];
+    const windGusts = hourly.wind_gusts_10m || [];
+    const weatherCode = hourly.weather_code || [];
+    const temperature = hourly.temperature_2m || [];
+
+    const now = new Date();
+
+    let currentIndex = times.findIndex(time => {
+      return new Date(time) >= now;
+    });
+
+    if (currentIndex === -1) {
+      currentIndex = 0;
+    }
+
+    const result = times
+      .slice(currentIndex, currentIndex + 7)
+      .map((time, index) => {
+
+        const i = currentIndex + index;
+
+        return {
+          timestamp: time,
+
+          hour: new Date(time).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+
+          rainfall: Number(precipitation[i] || 0),
+
+          soilMoisture: Number(soilMoisture[i] || 0),
+
+          humidity: Number(humidity[i] || 0),
+
+          cloudCover: Number(cloudCover[i] || 0),
+
+          precipitationProbability:
+            Number(precipitationProbability[i] || 0),
+
+          windSpeed: Number(windSpeed[i] || 0),
+
+          windGusts: Number(windGusts[i] || 0),
+
+          weatherCode: Number(weatherCode[i] ?? -1),
+
+          temperature: Number(temperature[i] || 0),
+
+          isDemo: false
+        };
+      });
 
     return result;
   },
@@ -961,6 +1364,21 @@ async getAllRiskZones() {
         sum + Number(item.value || 0),
       0
     );
+        // ============================================================
+    // LIVE SEVERE WEATHER FORECAST
+    // ============================================================
+
+    let severeWeatherForecast = [];
+
+    try {
+      severeWeatherForecast =
+        await this.getSevereWeatherForecast(locationName);
+    } catch (weatherError) {
+      console.warn(
+        'Severe weather forecast unavailable:',
+        weatherError
+      );
+    }
 
     // ============================================================
     // MODEL TOP FACTORS
@@ -1066,23 +1484,29 @@ async getAllRiskZones() {
       // LIVE ENVIRONMENT + TERRAIN
       // ----------------------------------------------------------
 
-      rainfall: liveRainfall,
+     // ----------------------------------------------------------
+// LIVE ENVIRONMENT + TERRAIN
+// ----------------------------------------------------------
 
-      soilMoisture: liveSoilMoisture,
+rainfall: rainfall,
 
-      slope: liveSlope,
+soilMoisture: zone.soilMoisture ?? null,
 
-      elevation: liveElevation,
+slope: zone.slope ?? null,
 
-      aspect: liveAspect,
+elevation: zone.elevation ?? null,
 
-      stability: liveStability,
+aspect: zone.aspect ?? null,
 
-      environmentLive:
-        monitoring?.rainfall?.isDemo === false,
+stability: zone.stability ?? null,
 
-      terrainLive:
-        monitoring?.terrain?.isDemo === false,
+environmentLive: rainfall.length > 0,
+
+terrainLive: false,
+      severeWeatherForecast: severeWeatherForecast,
+
+      severeWeatherForecastLive:
+        severeWeatherForecast.length > 0,
 
       // ----------------------------------------------------------
       // TIMESTAMP
@@ -1755,21 +2179,23 @@ async getAllRiskZones() {
     // work for places that are not present in DEMO_DATA.
     const coords = await this._resolveCoordinates(location);
 
-    const [rainfall, terrain, historicalRainfall] = await Promise.all([
-      this._getLiveRainfallBlock(location, zone, demoBlock.rainfall, coords),
-      this._getLiveTerrainBlock(location, zone, demoBlock.terrain, coords),
-      this.getHistoricalRainfall(location, 30)
-    ]);
+   const [rainfall, terrain, historicalRainfall, weather] = await Promise.all([
+  this._getLiveRainfallBlock(location, zone, demoBlock.rainfall, coords),
+  this._getLiveTerrainBlock(location, zone, demoBlock.terrain, coords),
+  this.getHistoricalRainfall(location, 30),
+  this.getSevereWeatherForecast(location)
+]);
 
     const satellite = this._getSatelliteImageryBlock(location, coords, demoBlock.satellite);
 
-    return {
-      location,
-      coordinates: coords,
-      rainfall,
-      terrain,
-      satellite,
-      historical: {
+   return {
+  location,
+  coordinates: coords,
+  rainfall,
+  weather,
+  terrain,
+  satellite,
+  historical: {
         ...(demoBlock.historical || {}),
         rainfall: historicalRainfall,
         inventory: this.ISRO_LANDSLIDE_INVENTORY,
@@ -1792,7 +2218,9 @@ async getAllRiskZones() {
       `${this.API.OPEN_METEO}` +
       `?latitude=${coords.lat}` +
       `&longitude=${coords.lng}` +
-      `&hourly=precipitation,rain,soil_moisture_0_to_7cm` +
+      `&hourly=precipitation,rain,soil_moisture_0_to_7cm,` +
+`relative_humidity_2m,cloud_cover,precipitation_probability,` +
+`wind_speed_10m,wind_gusts_10m,weather_code,temperature_2m` +
       `&past_days=7` +
       `&forecast_days=1` +
       `&timezone=auto`;

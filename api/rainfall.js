@@ -11,13 +11,13 @@ export default async function handler(req, res) {
         }
 
         const url =
-            `https://api.open-meteo.com/v1/forecast` +
-            `?latitude=${lat}` +
-            `&longitude=${lon}` +
-            `&hourly=precipitation` +
-            `&past_days=7` +
-            `&forecast_days=1` +
-            `&timezone=Asia%2FKolkata`;
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}` +
+    `&longitude=${lon}` +
+    `&hourly=precipitation,precipitation_probability,relative_humidity_2m,cloud_cover,wind_speed_10m,wind_gusts_10m,weather_code,temperature_2m` +
+    `&past_days=7` +
+    `&forecast_days=1` +
+    `&timezone=Asia%2FKolkata`;
 
         const response = await fetch(url);
 
@@ -29,6 +29,13 @@ export default async function handler(req, res) {
 
         const times = data.hourly.time;
         const rainfall = data.hourly.precipitation;
+        const precipitationProbability = data.hourly.precipitation_probability;
+const humidity = data.hourly.relative_humidity_2m;
+const cloudCover = data.hourly.cloud_cover;
+const windSpeed = data.hourly.wind_speed_10m;
+const windGusts = data.hourly.wind_gusts_10m;
+const weatherCode = data.hourly.weather_code;
+const temperature = data.hourly.temperature_2m;
 
         const now = new Date();
 
@@ -87,6 +94,14 @@ for (const value of hourly24h) {
                 longitude: lon
             },
             rainfall_mm: Number((rainfall[latestIndex] || 0).toFixed(1)),
+            humidity_percent: humidity[latestIndex] ?? null,
+cloud_cover_percent: cloudCover[latestIndex] ?? null,
+precipitation_probability_percent:
+    precipitationProbability[latestIndex] ?? null,
+wind_speed_kmh: windSpeed[latestIndex] ?? null,
+wind_gusts_kmh: windGusts[latestIndex] ?? null,
+weather_code: weatherCode[latestIndex] ?? null,
+temperature_c: temperature[latestIndex] ?? null,
             rainfall_24h: rainfall24h,
             rainfall_48h: rainfall48h,
             rainfall_72h: rainfall72h,

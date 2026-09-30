@@ -132,7 +132,7 @@
                 </div>
             </div>
             ${renderInterpretation(d)}
-            ${renderExposureAndActions(d)}
+            
             ${renderRiskSummary(d, level)}
         `;
 
@@ -181,23 +181,22 @@
 
             <div class="risk-stats">
 
-                <!-- MODEL RISK SCORE -->
-                <div class="risk-stat level-${level}">
+               <!-- SEVERE WEATHER RISK -->
+<div class="risk-stat level-${level}">
 
-                    <div class="risk-stat-label">
-                        Model Risk Score
-                    </div>
+    <div class="risk-stat-label">
+        Severe Weather Risk
+    </div>
 
-                    <div class="risk-stat-value">
-                        ${Number(d.risk).toFixed(0)} / 100
-                    </div>
+    <div class="risk-stat-value">
+        ${Number(d.risk).toFixed(0)} / 100
+    </div>
 
-                    <div class="risk-stat-sub">
-                        Live SAHAYAK ML model
-                    </div>
+    <div class="risk-stat-sub">
+        SAHAYAK risk index
+    </div>
 
-                </div>
-
+</div>
 
                 <!-- RISK LEVEL -->
                 <div class="risk-stat level-${level}">
@@ -225,55 +224,37 @@
                     </div>
 
                     <div class="risk-stat-sub">
-                        Model classification
+                        Current risk classification
                     </div>
 
                 </div>
 
 
-                <!-- RISK CHANGE -->
-                <div class="risk-stat level-${level}">
-
-                    <div class="risk-stat-label">
-                        Risk Change
-                    </div>
-
-                    <div class="risk-stat-value">
-                        ${changeSymbol}
-                        ${d.riskChange ?? '—'}
-                    </div>
-
-                    <div class="risk-stat-sub ${changeClass}">
-                        points · last 12h
-                    </div>
-
-                </div>
 
 
-                <!-- MODEL STATUS -->
-                <div class="risk-stat">
+<!-- FORECAST STATUS -->
+<div class="risk-stat">
 
-                    <div class="risk-stat-label">
-                        Model Status
-                    </div>
+    <div class="risk-stat-label">
+        Forecast Status
+    </div>
 
-                    <div
-                        class="risk-stat-value"
-                        style="font-size: var(--fs-lg);"
-                    >
-                        ${d.modelConnected ? 'LIVE' : '—'}
-                    </div>
+    <div
+        class="risk-stat-value"
+        style="font-size: var(--fs-lg);"
+    >
+        ${d.severeWeatherForecastLive ? 'LIVE' : '—'}
+    </div>
 
-                    <div class="risk-stat-sub">
-                        ${d.modelConnected
-                ? `SAHAYAK ML · ${d.modelRiskLevel || d.level}`
-                : 'model unavailable'
-            }
-                    </div>
+    <div class="risk-stat-sub">
+        ${d.severeWeatherForecastLive
+            ? 'Open-Meteo · next 6 hours'
+            : 'forecast unavailable'
+        }
+    </div>
 
-                </div>
-
-            </div>
+</div>
+       </div>
 
         </section>
     `;
@@ -349,133 +330,384 @@
 
     // ============ TREND CHART ============
     function renderTrendChart(d) {
-    const isLive = d.isLive === true || d.modelConnected === true;
+    const isLive =
+    Array.isArray(d.severeWeatherForecast) &&
+    d.severeWeatherForecast.length > 0;
     return `
-        <section class="analysis-card" aria-label="Risk evolution chart">
+        <section class="analysis-card" aria-label="Severe Weather Forecast">
             <div class="analysis-card-header">
                 <div class="analysis-card-title">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    Risk Evolution
+                    Severe Weather Forecast
                 </div>
                 <span class="analysis-card-badge">${isLive ? 'LIVE' : 'DEMO'}</span>
             </div>
             <div class="analysis-card-body">
                 <div class="risk-trend-wrap"><canvas id="trendChart"></canvas></div>
-                <div class="chart-footer">Warning threshold at 80</div>
+                <div class="chart-footer">    Next 6 hours · Severe Weather Risk Index
+</div>
             </div>
         </section>
     `;
 }
 
     function initTrendChart(d) {
-        const canvas = document.getElementById('trendChart');
-        if (!canvas || typeof Chart === 'undefined') return;
 
-        const labels = ['06:00', '09:00', '12:00', '15:00', '18:00'];
-        const data = d.trend;
+    const canvas = document.getElementById('trendChart');
 
-        if (state.charts.trend) state.charts.trend.destroy();
+    if (!canvas || typeof Chart === 'undefined') return;
 
-        const ctx = canvas.getContext('2d');
-        const gradient = ctx.createLinearGradient(0, 0, 0, 260);
-        gradient.addColorStop(0, 'rgba(25, 184, 199, 0.25)');
-        gradient.addColorStop(1, 'rgba(25, 184, 199, 0)');
+    const forecast = d.severeWeatherForecast || [];
 
-        state.charts.trend = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Risk Score',
-                    data: data,
-                    borderColor: '#19B8C7',
-                    backgroundColor: gradient,
-                    borderWidth: 2.5,
-                    fill: true,
-                    tension: 0.4,
-                    pointBackgroundColor: '#19B8C7',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2,
-                    pointRadius: 5,
-                    pointHoverRadius: 7
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 1200, easing: 'easeOutQuart' },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: '#0B1728',
-                        titleColor: '#fff',
-                        bodyColor: '#E5EAF2',
-                        borderColor: '#19B8C7',
-                        borderWidth: 1,
-                        padding: 12,
-                        cornerRadius: 8,
-                        callbacks: { label: (ctx) => `Risk: ${ctx.parsed.y}/100` }
-                    }
-                },
-                scales: {
-                    y: {
-                        min: 0, max: 100,
-                        grid: { color: 'rgba(217, 224, 232, 0.5)', drawBorder: false },
-                        ticks: { color: '#8A9BB5', font: { size: 11, family: 'Inter' } }
-                    },
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: '#8A9BB5', font: { size: 11, family: 'Inter' } }
-                    }
-                }
-            },
-            plugins: [{
-                id: 'thresholdLine',
-                afterDraw: (chart) => {
-                    const ctx = chart.ctx;
-                    const yScale = chart.scales.y;
-                    const y = yScale.getPixelForValue(80);
-                    ctx.save();
-                    ctx.strokeStyle = '#DC2626';
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([6, 4]);
-                    ctx.beginPath();
-                    ctx.moveTo(chart.chartArea.left, y);
-                    ctx.lineTo(chart.chartArea.right, y);
-                    ctx.stroke();
-                    ctx.fillStyle = '#DC2626';
-                    ctx.font = '600 10px Inter';
-                    ctx.textAlign = 'right';
-                    ctx.fillText('Warning Threshold', chart.chartArea.right - 4, y - 6);
-                    ctx.restore();
-                }
-            }]
-        });
+    if (!forecast.length) return;
+
+    const labels = forecast.map((item, index) => {
+        if (index === 0) return 'NOW';
+        return `+${index}h`;
+    });
+
+    const data = forecast.map(item => {
+
+        const rain = Number(item.rainfall || 0);
+        const probability =
+            Number(item.precipitationProbability || 0);
+        const humidity = Number(item.humidity || 0);
+        const cloud = Number(item.cloudCover || 0);
+        const wind = Number(item.windSpeed || 0);
+        const gust = Number(item.windGusts || 0);
+        const weatherCode =
+            Number(item.weatherCode ?? -1);
+
+        let score = 0;
+
+        // Rainfall intensity
+        score += Math.min(30, rain * 3);
+
+        // Probability of precipitation
+        score += probability * 0.20;
+
+        // High humidity
+        score += Math.min(
+            10,
+            Math.max(0, humidity - 70) * 0.33
+        );
+
+        // Cloud cover
+        score += cloud * 0.10;
+
+        // Wind speed
+        score += Math.min(10, wind * 0.25);
+
+        // Wind gusts
+        score += Math.min(10, gust * 0.15);
+
+        // WMO thunderstorm codes
+        if ([95, 96, 99].includes(weatherCode)) {
+            score += 10;
+        }
+
+        return Math.round(
+            Math.max(0, Math.min(100, score))
+        );
+    });
+
+    if (state.charts.trend) {
+        state.charts.trend.destroy();
     }
+
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createLinearGradient(
+        0,
+        0,
+        0,
+        260
+    );
+
+    gradient.addColorStop(
+        0,
+        'rgba(25, 184, 199, 0.25)'
+    );
+
+    gradient.addColorStop(
+        1,
+        'rgba(25, 184, 199, 0)'
+    );
+
+    state.charts.trend = new Chart(ctx, {
+
+        type: 'line',
+
+        data: {
+
+            labels: labels,
+
+            datasets: [{
+
+                label: 'Severe Weather Risk',
+
+                data: data,
+
+                borderColor: '#19B8C7',
+
+                backgroundColor: gradient,
+
+                borderWidth: 2.5,
+
+                fill: true,
+
+                tension: 0.4,
+
+                pointBackgroundColor: '#19B8C7',
+
+                pointBorderColor: '#fff',
+
+                pointBorderWidth: 2,
+
+                pointRadius: 5,
+
+                pointHoverRadius: 7
+
+            }]
+
+        },
+
+        options: {
+
+            responsive: true,
+
+            maintainAspectRatio: false,
+
+            animation: {
+                duration: 1200,
+                easing: 'easeOutQuart'
+            },
+
+            plugins: {
+
+                legend: {
+                    display: false
+                },
+
+                tooltip: {
+
+                    backgroundColor: '#0B1728',
+
+                    titleColor: '#fff',
+
+                    bodyColor: '#E5EAF2',
+
+                    borderColor: '#19B8C7',
+
+                    borderWidth: 1,
+
+                    padding: 12,
+
+                    cornerRadius: 8,
+
+                    callbacks: {
+
+                        label: (ctx) =>
+                            `Risk Index: ${ctx.parsed.y}/100`
+
+                    }
+
+                }
+
+            },
+
+            scales: {
+
+                y: {
+
+                    min: 0,
+
+                    max: 100,
+
+                    title: {
+
+                        display: true,
+
+                        text: 'Risk Index'
+
+                    },
+
+                    grid: {
+                        color: 'rgba(217, 224, 232, 0.5)',
+                        drawBorder: false
+                    },
+
+                    ticks: {
+                        color: '#8A9BB5',
+                        font: {
+                            size: 11,
+                            family: 'Inter'
+                        }
+                    }
+
+                },
+
+                x: {
+
+                    grid: {
+                        display: false
+                    },
+
+                    ticks: {
+                        color: '#8A9BB5',
+                        font: {
+                            size: 11,
+                            family: 'Inter'
+                        }
+                    }
+
+                }
+
+            }
+
+        }
+
+    });
+}
 
     // ============ FACTOR SECTION ============
     function renderFactorSection(d) {
-        const barsHtml = d.factors.map(f => {
-            const pct = (f.value / 40) * 100;
-            const tier = f.value >= 25 ? 'tier-critical' : f.value >= 18 ? 'tier-high' : f.value >= 10 ? 'tier-mid' : 'tier-low';
-            return `
-                <div class="factor-bar" style="--target-width: ${pct}%">
-                    <div class="factor-bar-label">${f.label}</div>
-                    <div class="factor-bar-track"><div class="factor-bar-fill ${tier}"></div></div>
-                    <div class="factor-bar-value">+${f.value}</div>
-                </div>
-            `;
-        }).join('');
 
+    const forecast = d.severeWeatherForecast || [];
+
+    if (!forecast.length) {
         return `
-            <section class="factor-section" aria-label="Risk factor contributions">
-                <h2 class="factor-section-title">Why is this area high risk?</h2>
-                <p class="factor-section-subtitle">Factor contribution to the current risk score — SHAP-style explanation</p>
-                <div class="factor-bars" id="factorBars">${barsHtml}</div>
-                <div class="factor-section-footer">Illustrative SHAP-style explanation — DEMO</div>
+            <section class="factor-section" aria-label="Forecast drivers">
+                <h2 class="factor-section-title">Forecast Drivers</h2>
+                <p class="factor-section-subtitle">
+                    Weather forecast data is currently unavailable.
+                </p>
             </section>
         `;
     }
+
+    const nextHours = forecast.slice(0, 6);
+
+    const maxRainfall = Math.max(
+        ...nextHours.map(item => Number(item.rainfall || 0))
+    );
+
+    const maxProbability = Math.max(
+        ...nextHours.map(
+            item => Number(item.precipitationProbability || 0)
+        )
+    );
+
+    const maxCloud = Math.max(
+        ...nextHours.map(item => Number(item.cloudCover || 0))
+    );
+
+    const maxHumidity = Math.max(
+        ...nextHours.map(item => Number(item.humidity || 0))
+    );
+
+    const maxWindGust = Math.max(
+        ...nextHours.map(item => Number(item.windGusts || 0))
+    );
+
+    const hasThunderstorm = nextHours.some(item =>
+        [95, 96, 99].includes(Number(item.weatherCode))
+    );
+
+    const drivers = [
+        {
+            label: 'Rainfall intensity',
+            value: maxRainfall,
+            unit: 'mm/h',
+            max: 10
+        },
+        {
+            label: 'Rain probability',
+            value: maxProbability,
+            unit: '%',
+            max: 100
+        },
+        {
+            label: 'Cloud cover',
+            value: maxCloud,
+            unit: '%',
+            max: 100
+        },
+        {
+            label: 'Humidity',
+            value: maxHumidity,
+            unit: '%',
+            max: 100
+        },
+        {
+            label: 'Maximum wind gust',
+            value: maxWindGust,
+            unit: 'km/h',
+            max: 80
+        }
+    ];
+
+    const barsHtml = drivers.map(driver => {
+
+        const pct = Math.min(
+            100,
+            (driver.value / driver.max) * 100
+        );
+
+        const tier =
+            pct >= 75
+                ? 'tier-critical'
+                : pct >= 50
+                    ? 'tier-high'
+                    : pct >= 25
+                        ? 'tier-mid'
+                        : 'tier-low';
+
+        return `
+            <div class="factor-bar" style="--target-width: ${pct}%">
+
+                <div class="factor-bar-label">
+                    ${driver.label}
+                </div>
+
+                <div class="factor-bar-track">
+                    <div class="factor-bar-fill ${tier}"></div>
+                </div>
+
+                <div class="factor-bar-value">
+                    ${driver.value.toFixed(1)} ${driver.unit}
+                </div>
+
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <section class="factor-section" aria-label="Forecast drivers">
+
+            <h2 class="factor-section-title">
+                What is driving the forecast?
+            </h2>
+
+            <p class="factor-section-subtitle">
+                Key weather conditions observed in the next 6 hours
+            </p>
+
+            <div class="factor-bars" id="factorBars">
+                ${barsHtml}
+            </div>
+
+            <div class="factor-section-footer">
+                Based on live Open-Meteo forecast inputs
+                ${hasThunderstorm
+                    ? ' · Thunderstorm conditions detected in the forecast window'
+                    : ''
+                }
+            </div>
+
+        </section>
+    `;
+}
 
     function animateFactorBars() {
         const bars = document.querySelectorAll('#factorBars .factor-bar');
@@ -571,59 +803,100 @@ function renderAIExplanation(d) {
     }
 
     // ============ ENVIRONMENTAL CONDITIONS ============
-  function renderEnvironmentalConditions(d) {
+function renderEnvironmentalConditions(d) {
 
-const isLive = d.isLive === true || d.modelConnected === true;
+    const forecast = d.severeWeatherForecast || [];
+    const current = forecast[0] || {};
+
+    const rainfall = Number(current.rainfall || 0);
+    const humidity = Number(current.humidity || 0);
+    const cloudCover = Number(current.cloudCover || 0);
+    const precipitationProbability =
+        Number(current.precipitationProbability || 0);
+    const windSpeed = Number(current.windSpeed || 0);
+    const windGusts = Number(current.windGusts || 0);
+    const temperature = Number(current.temperature || 0);
+
+    const soilMoistureRaw = Number(current.soilMoisture || 0);
+
+    // Open-Meteo soil moisture is a volumetric fraction.
+    const soilMoisture = soilMoistureRaw <= 1
+        ? soilMoistureRaw * 100
+        : soilMoistureRaw;
+
     const cards = [
+
         {
             icon: 'cloud-rain',
-            value: `${d.rainfall ?? '--'} mm`,
-            label: '72h accumulation',
-            status: (d.rainfall ?? 0) > 200 ? 'above' : 'normal',
-            statusLabel: isLive ? 'LIVE' : 'LIVE'
+            value: `${rainfall.toFixed(1)} mm/h`,
+            label: 'Current rainfall',
+            status: rainfall > 10 ? 'above' : 'normal',
+            statusLabel: 'LIVE'
         },
+
         {
-            
             icon: 'droplet',
-            value: `${d.soilMoisture ?? '--'}%`,
-            label: 'Current estimate',
-            status: (d.soilMoisture ?? 0) > 75 ? 'high' : 'normal',
-            statusLabel: isLive ? 'LIVE' : 'LIVE'
+            value: `${soilMoisture.toFixed(1)}%`,
+            label: 'Soil moisture',
+            status: soilMoisture > 75 ? 'high' : 'normal',
+            statusLabel: 'LIVE'
         },
+
         {
-            icon: 'mountain',
-            value: `${d.slope ?? '--'}°`,
-            label: 'Terrain slope',
-            status: (d.slope ?? 0) > 35 ? 'steep' : 'normal',
-            statusLabel: isLive ? 'LIVE' : 'LIVE'
+            icon: 'cloud',
+            value: `${cloudCover.toFixed(0)}%`,
+            label: 'Cloud cover',
+            status: cloudCover > 80 ? 'high' : 'normal',
+            statusLabel: 'LIVE'
         },
+
         {
-            icon: 'arrow-up',
-            value: `${Utils.formatNumber(d.elevation ?? 0)} m`,
-            label: 'Elevation',
-            status: (d.elevation ?? 0) > 1800 ? 'high-terrain' : 'normal',
-            statusLabel: isLive ? 'LIVE' : 'LIVE'
+            icon: 'cloud-rain',
+            value: `${precipitationProbability.toFixed(0)}%`,
+            label: 'Rain probability',
+            status: precipitationProbability > 70 ? 'above' : 'normal',
+            statusLabel: 'LIVE'
         },
+
         {
-            icon: 'satellite',
-            value: d.satelliteChange ? 'Detected' : 'Stable',
-            label: 'Surface change',
-            status: d.satelliteChange ? 'monitor' : 'normal',
-            statusLabel: isLive ? 'LIVE' : 'LIVE'
+            icon: 'wind',
+            value: `${windSpeed.toFixed(1)} km/h`,
+            label: 'Wind speed',
+            status: windSpeed > 40 ? 'above' : 'normal',
+            statusLabel: 'LIVE'
         },
+
+        {
+            icon: 'wind',
+            value: `${windGusts.toFixed(1)} km/h`,
+            label: 'Wind gusts',
+            status: windGusts > 60 ? 'above' : 'normal',
+            statusLabel: 'LIVE'
+        },
+
+        {
+            icon: 'thermometer',
+            value: `${temperature.toFixed(1)} °C`,
+            label: 'Temperature',
+            status: 'normal',
+            statusLabel: 'LIVE'
+        },
+
         {
             icon: 'clock',
-            value: `${d.historical ?? '--'}`,
-            label: 'Historical events',
+            value: current.hour || '--',
+            label: 'Forecast time',
             status: 'normal',
-            statusLabel: isLive ? 'LIVE' : 'LIVE'
+            statusLabel: 'LIVE'
         }
+
     ];
 
     const html = cards.map(c => `
         <div class="env-condition">
 
             <div class="env-condition-header">
+
                 <div class="env-condition-icon">
                     ${getIcon(c.icon)}
                 </div>
@@ -631,6 +904,7 @@ const isLive = d.isLive === true || d.modelConnected === true;
                 <span class="env-condition-status ${c.status}">
                     ${c.statusLabel}
                 </span>
+
             </div>
 
             <div class="env-condition-value">
@@ -645,40 +919,47 @@ const isLive = d.isLive === true || d.modelConnected === true;
     `).join('');
 
     return `
-        <section class="analysis-card" aria-label="Environmental conditions">
+        <section class="analysis-card" aria-label="Current weather conditions">
 
             <div class="analysis-card-header">
 
                 <div class="analysis-card-title">
+
                     <svg viewBox="0 0 24 24"
                          fill="none"
                          stroke="currentColor"
                          stroke-width="2"
                          stroke-linecap="round"
                          stroke-linejoin="round">
+
                         <path d="M3 3v18h18"/>
-                        <path d="M18 17V9M13 17V5M8 17v-3"/>
+                        <path d="M18 17V9"/>
+                        <path d="M13 17V5"/>
+                        <path d="M8 17v-3"/>
+
                     </svg>
 
-                    Environmental & Terrain Conditions
+                    Current Weather Conditions
+
                 </div>
 
                 <span class="analysis-card-badge">
-                    ${isLive ? 'LIVE' : 'DEMO'}
+                    ${forecast.length > 0 ? 'LIVE' : 'UNAVAILABLE'}
                 </span>
 
             </div>
 
             <div class="analysis-card-body">
+
                 <div class="env-conditions-grid">
                     ${html}
                 </div>
+
             </div>
 
         </section>
     `;
 }
-
     // ============ TERRAIN PANEL ============
     function renderTerrainPanel(d) {
         const items = [
@@ -761,93 +1042,227 @@ const isLive = d.isLive === true || d.modelConnected === true;
     }
 
     function initRainfallChart(d) {
-        const canvas = document.getElementById('rainfallChart');
-        if (!canvas || typeof Chart === 'undefined') return;
+    const canvas = document.getElementById('rainfallChart');
+    if (!canvas || typeof Chart === 'undefined') return;
 
-        const history = d.rainfallHistory || [];
-        const labels = history.map(h => h.time);
-        const rainfall = history.map(h => h.rainfall);
-        const risk = history.map(h => h.risk);
+    const forecast = d.severeWeatherForecast || [];
 
-        if (state.charts.rainfall) state.charts.rainfall.destroy();
+    if (!forecast.length) {
+        console.warn('No severe weather forecast data available.');
+        return;
+    }
 
-        const ctx = canvas.getContext('2d');
+    const labels = forecast.map((item, index) => {
+        if (index === 0) return 'NOW';
+        return `+${index}h`;
+    });
 
-        state.charts.rainfall = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Rainfall (mm)',
-                        data: rainfall,
-                        borderColor: '#0F9D8A',
-                        backgroundColor: 'rgba(15, 157, 138, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4,
-                        yAxisID: 'y',
-                        pointBackgroundColor: '#0F9D8A',
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointRadius: 4
-                    },
-                    {
-                        label: 'Risk Score',
-                        data: risk,
-                        borderColor: '#F97316',
-                        backgroundColor: 'rgba(249, 115, 22, 0.08)',
-                        borderWidth: 2,
-                        borderDash: [5, 3],
-                        fill: false,
-                        tension: 0.4,
-                        yAxisID: 'y1',
-                        pointBackgroundColor: '#F97316',
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointRadius: 4
-                    }
-                ]
+    const rainfall = forecast.map(item =>
+        Number(item.rainfall || 0)
+    );
+
+    // Transparent prototype risk index using REAL forecast inputs.
+    const risk = forecast.map(item => {
+
+        const rain = Number(item.rainfall || 0);
+        const probability =
+            Number(item.precipitationProbability || 0);
+        const humidity =
+            Number(item.humidity || 0);
+        const cloud =
+            Number(item.cloudCover || 0);
+        const wind =
+            Number(item.windSpeed || 0);
+        const gust =
+            Number(item.windGusts || 0);
+        const weatherCode =
+            Number(item.weatherCode ?? -1);
+
+        let score = 0;
+
+        // Rainfall intensity: up to 30 points
+        score += Math.min(30, rain * 3);
+
+        // Probability of precipitation: up to 20 points
+        score += probability * 0.20;
+
+        // Humidity: up to 10 points
+        score += Math.min(10, Math.max(0, humidity - 70) * 0.33);
+
+        // Cloud cover: up to 10 points
+        score += cloud * 0.10;
+
+        // Wind speed: up to 10 points
+        score += Math.min(10, wind * 0.25);
+
+        // Wind gusts: up to 10 points
+        score += Math.min(10, gust * 0.15);
+
+        // Weather code contribution
+        // WMO thunderstorm codes: 95, 96, 99
+        if ([95, 96, 99].includes(weatherCode)) {
+            score += 10;
+        }
+
+        return Math.round(
+            Math.max(0, Math.min(100, score))
+        );
+    });
+
+    if (state.charts.rainfall) {
+        state.charts.rainfall.destroy();
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    state.charts.rainfall = new Chart(ctx, {
+        type: 'line',
+
+        data: {
+            labels: labels,
+
+            datasets: [
+                {
+                    label: 'Rainfall (mm)',
+                    data: rainfall,
+                    borderColor: '#0F9D8A',
+                    backgroundColor: 'rgba(15, 157, 138, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    yAxisID: 'y',
+                    pointBackgroundColor: '#0F9D8A',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4
+                },
+
+                {
+                    label: 'Severe Weather Risk',
+                    data: risk,
+                    borderColor: '#F97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.08)',
+                    borderWidth: 2,
+                    borderDash: [5, 3],
+                    fill: false,
+                    tension: 0.4,
+                    yAxisID: 'y1',
+                    pointBackgroundColor: '#F97316',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4
+                }
+            ]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 1200 },
+
+            interaction: {
+                mode: 'index',
+                intersect: false
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 1200 },
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        align: 'end',
-                        labels: { color: '#6B7280', font: { size: 11, family: 'Inter' }, usePointStyle: true, pointStyle: 'circle', padding: 16 }
-                    },
-                    tooltip: {
-                        backgroundColor: '#0B1728',
-                        titleColor: '#fff',
-                        bodyColor: '#E5EAF2',
-                        borderColor: '#19B8C7',
-                        borderWidth: 1,
-                        padding: 12,
-                        cornerRadius: 8
+
+            plugins: {
+                legend: {
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        color: '#6B7280',
+                        font: {
+                            size: 11,
+                            family: 'Inter'
+                        },
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        padding: 16
                     }
                 },
-                scales: {
-                    y: {
-                        type: 'linear', position: 'left',
-                        title: { display: true, text: 'Rainfall (mm)', color: '#0F9D8A', font: { size: 10, weight: '600' } },
-                        grid: { color: 'rgba(217, 224, 232, 0.5)' },
-                        ticks: { color: '#8A9BB5', font: { size: 10 } }
+
+                tooltip: {
+                    backgroundColor: '#0B1728',
+                    titleColor: '#fff',
+                    bodyColor: '#E5EAF2',
+                    borderColor: '#19B8C7',
+                    borderWidth: 1,
+                    padding: 12,
+                    cornerRadius: 8
+                }
+            },
+
+            scales: {
+                y: {
+                    type: 'linear',
+                    position: 'left',
+
+                    title: {
+                        display: true,
+                        text: 'Rainfall (mm)',
+                        color: '#0F9D8A',
+                        font: {
+                            size: 10,
+                            weight: '600'
+                        }
                     },
-                    y1: {
-                        type: 'linear', position: 'right', min: 0, max: 100,
-                        title: { display: true, text: 'Risk Score', color: '#F97316', font: { size: 10, weight: '600' } },
-                        grid: { drawOnChartArea: false },
-                        ticks: { color: '#8A9BB5', font: { size: 10 } }
+
+                    grid: {
+                        color: 'rgba(217, 224, 232, 0.5)'
                     },
-                    x: { grid: { display: false }, ticks: { color: '#8A9BB5', font: { size: 10 } } }
+
+                    ticks: {
+                        color: '#8A9BB5',
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    min: 0,
+                    max: 100,
+
+                    title: {
+                        display: true,
+                        text: 'Severe Weather Risk',
+                        color: '#F97316',
+                        font: {
+                            size: 10,
+                            weight: '600'
+                        }
+                    },
+
+                    grid: {
+                        drawOnChartArea: false
+                    },
+
+                    ticks: {
+                        color: '#8A9BB5',
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+
+                x: {
+                    grid: {
+                        display: false
+                    },
+
+                    ticks: {
+                        color: '#8A9BB5',
+                        font: {
+                            size: 10
+                        }
+                    }
                 }
             }
-        });
-    }
+        }
+    });
+}
 
     // ============ RISK HISTORY TIMELINE ============
     function renderRiskHistoryTimeline(d) {
@@ -939,50 +1354,440 @@ const isLive = d.isLive === true || d.modelConnected === true;
     }
 
     // ============ INTERPRETATION ============
-    function renderInterpretation(d) {
-        const interp = d.interpretation || {};
-        const statusLevel = (interp.status || d.level).toLowerCase();
+   function renderInterpretation(d) {
 
+    const forecast = d.severeWeatherForecast || [];
+    const nextHours = forecast.slice(0, 6);
+
+    if (!nextHours.length) {
         return `
             <section class="analysis-card" aria-label="Risk interpretation">
+
                 <div class="analysis-card-header">
                     <div class="analysis-card-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+
+                        <svg viewBox="0 0 24 24"
+                             fill="none"
+                             stroke="currentColor"
+                             stroke-width="2"
+                             stroke-linecap="round"
+                             stroke-linejoin="round">
+
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+
+                        </svg>
+
                         Risk Interpretation
+
                     </div>
                 </div>
+
                 <div class="analysis-card-body">
+
                     <div class="interpretation-grid">
+
                         <div class="interpretation-item">
-                            <div class="interpretation-label">Current Status</div>
-                            <div class="interpretation-value status-${"20"}">${interp.status || d.level}</div>
+                            <div class="interpretation-label">
+                                Current Status
+                            </div>
+                            <div class="interpretation-value">
+                                UNAVAILABLE
+                            </div>
                         </div>
+
                         <div class="interpretation-item">
-                            <div class="interpretation-label">Confidence</div>
-                            <div class="interpretation-value">${interp.confidence || 'Demonstration value'}</div>
-                    
+                            <div class="interpretation-label">
+                                Forecast Data
+                            </div>
+                            <div class="interpretation-value">
+                                Unavailable
+                            </div>
                         </div>
+
                         <div class="interpretation-item">
-                            <div class="interpretation-label">Trend</div>
-                            <div class="interpretation-value">${interp.trend || 'Stable'}</div>
+                            <div class="interpretation-label">
+                                Forecast Trend
+                            </div>
+                            <div class="interpretation-value">
+                                —
+                            </div>
                         </div>
+
                         <div class="interpretation-item">
-                            <div class="interpretation-label">Primary Driver</div>
-                            <div class="interpretation-value">${interp.primaryDriver || '—'}</div>
+                            <div class="interpretation-label">
+                                Primary Driver
+                            </div>
+                            <div class="interpretation-value">
+                                —
+                            </div>
                         </div>
+
                         <div class="interpretation-item">
-                            <div class="interpretation-label">Secondary Driver</div>
-                            <div class="interpretation-value">${interp.secondaryDriver || '—'}</div>
+                            <div class="interpretation-label">
+                                Secondary Driver
+                            </div>
+                            <div class="interpretation-value">
+                                —
+                            </div>
                         </div>
+
                         <div class="interpretation-item">
-                            <div class="interpretation-label">Terrain Factor</div>
-                            <div class="interpretation-value">${interp.terrainFactor || '—'}</div>
+                            <div class="interpretation-label">
+                                Terrain Context
+                            </div>
+                            <div class="interpretation-value">
+                                —
+                            </div>
                         </div>
+
                     </div>
+
                 </div>
+
             </section>
         `;
     }
+
+    // ==============================
+    // FORECAST VALUES
+    // ==============================
+
+    const maxRainfall = Math.max(
+        ...nextHours.map(
+            item => Number(item.rainfall || 0)
+        )
+    );
+
+    const maxProbability = Math.max(
+        ...nextHours.map(
+            item => Number(item.precipitationProbability || 0)
+        )
+    );
+
+    const maxCloud = Math.max(
+        ...nextHours.map(
+            item => Number(item.cloudCover || 0)
+        )
+    );
+
+    const maxHumidity = Math.max(
+        ...nextHours.map(
+            item => Number(item.humidity || 0)
+        )
+    );
+
+    const maxWindGust = Math.max(
+        ...nextHours.map(
+            item => Number(item.windGusts || 0)
+        )
+    );
+
+    // ==============================
+    // THUNDERSTORM CHECK
+    // ==============================
+
+    const thunderstormDetected = nextHours.some(
+        item =>
+            [95, 96, 99].includes(
+                Number(item.weatherCode)
+            )
+    );
+
+    // ==============================
+    // FORECAST DRIVER SCORES
+    // ==============================
+
+    const drivers = [
+        {
+            name: 'Rainfall intensity',
+            score: Math.min(
+                100,
+                maxRainfall * 10
+            )
+        },
+        {
+            name: 'Rain probability',
+            score: maxProbability
+        },
+        {
+            name: 'Cloud cover',
+            score: maxCloud
+        },
+        {
+            name: 'Humidity',
+            score: maxHumidity
+        },
+        {
+            name: 'Wind gusts',
+            score: Math.min(
+                100,
+                maxWindGust * 1.25
+            )
+        }
+    ];
+
+    drivers.sort(
+        (a, b) => b.score - a.score
+    );
+
+    const primaryDriver =
+        drivers[0]?.name || 'Weather conditions';
+
+    const secondaryDriver =
+        drivers[1]?.name || 'Weather conditions';
+
+    // ==============================
+    // CURRENT WEATHER RISK INDEX
+    // Same calculation used by graph
+    // ==============================
+
+    function calculateRisk(item) {
+
+        const rain =
+            Number(item.rainfall || 0);
+
+        const probability =
+            Number(
+                item.precipitationProbability || 0
+            );
+
+        const humidity =
+            Number(item.humidity || 0);
+
+        const cloud =
+            Number(item.cloudCover || 0);
+
+        const wind =
+            Number(item.windSpeed || 0);
+
+        const gust =
+            Number(item.windGusts || 0);
+
+        const weatherCode =
+            Number(item.weatherCode ?? -1);
+
+        let score = 0;
+
+        score += Math.min(
+            30,
+            rain * 3
+        );
+
+        score += probability * 0.20;
+
+        score += Math.min(
+            10,
+            Math.max(
+                0,
+                humidity - 70
+            ) * 0.33
+        );
+
+        score += cloud * 0.10;
+
+        score += Math.min(
+            10,
+            wind * 0.25
+        );
+
+        score += Math.min(
+            10,
+            gust * 0.15
+        );
+
+        if (
+            [95, 96, 99].includes(weatherCode)
+        ) {
+            score += 10;
+        }
+
+        return Math.round(
+            Math.max(
+                0,
+                Math.min(100, score)
+            )
+        );
+    }
+
+    const currentRisk =
+        calculateRisk(nextHours[0]);
+
+    const finalRisk =
+        calculateRisk(
+            nextHours[nextHours.length - 1]
+        );
+
+    // ==============================
+    // STATUS
+    // ==============================
+
+    let status = 'SAFE';
+
+    if (currentRisk >= 75) {
+        status = 'CRITICAL';
+    } else if (currentRisk >= 60) {
+        status = 'WARNING';
+    } else if (currentRisk >= 40) {
+        status = 'WATCH';
+    }
+
+    const statusLevel =
+        status.toLowerCase();
+
+    // ==============================
+    // TREND
+    // ==============================
+
+    let trend = 'Stable';
+
+    if (finalRisk > currentRisk + 10) {
+        trend = 'Increasing';
+    } else if (
+        finalRisk < currentRisk - 10
+    ) {
+        trend = 'Decreasing';
+    }
+
+    // ==============================
+    // TERRAIN CONTEXT
+    // ==============================
+
+    const slope =
+        Number(d.slope);
+
+    let terrainFactor =
+        'Terrain data available';
+
+    if (Number.isFinite(slope)) {
+
+        if (slope > 35) {
+            terrainFactor = 'Steep slope';
+        } else if (slope > 20) {
+            terrainFactor = 'Moderate slope';
+        } else {
+            terrainFactor = 'Gentle slope';
+        }
+    }
+
+    // ==============================
+    // RENDER
+    // ==============================
+
+    return `
+        <section class="analysis-card"
+                 aria-label="Risk interpretation">
+
+            <div class="analysis-card-header">
+
+                <div class="analysis-card-title">
+
+                    <svg viewBox="0 0 24 24"
+                         fill="none"
+                         stroke="currentColor"
+                         stroke-width="2"
+                         stroke-linecap="round"
+                         stroke-linejoin="round">
+
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+
+                    </svg>
+
+                    Risk Interpretation
+
+                </div>
+
+            </div>
+
+            <div class="analysis-card-body">
+
+                <div class="interpretation-grid">
+
+                    <div class="interpretation-item">
+
+                        <div class="interpretation-label">
+                            Current Status
+                        </div>
+
+                        <div class="interpretation-value status-${statusLevel}">
+                            ${status}
+                        </div>
+
+                    </div>
+
+                    <div class="interpretation-item">
+
+                        <div class="interpretation-label">
+                            Forecast Data
+                        </div>
+
+                        <div class="interpretation-value">
+                            ${d.severeWeatherForecastLive
+                                ? 'LIVE'
+                                : 'Unavailable'
+                            }
+                        </div>
+
+                    </div>
+
+                    <div class="interpretation-item">
+
+                        <div class="interpretation-label">
+                            Forecast Trend
+                        </div>
+
+                        <div class="interpretation-value">
+                            ${trend}
+                        </div>
+
+                    </div>
+
+                    <div class="interpretation-item">
+
+                        <div class="interpretation-label">
+                            Primary Driver
+                        </div>
+
+                        <div class="interpretation-value">
+                            ${primaryDriver}
+                        </div>
+
+                    </div>
+
+                    <div class="interpretation-item">
+
+                        <div class="interpretation-label">
+                            Secondary Driver
+                        </div>
+
+                        <div class="interpretation-value">
+                            ${secondaryDriver}
+                        </div>
+
+                    </div>
+
+                    <div class="interpretation-item">
+
+                        <div class="interpretation-label">
+                            Terrain Context
+                        </div>
+
+                        <div class="interpretation-value">
+                            ${terrainFactor}
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+    `;
+}
 
     // ============ EXPOSURE & ACTIONS ============
     function renderExposureAndActions(d) {
@@ -1067,41 +1872,104 @@ const isLive = d.isLive === true || d.modelConnected === true;
     }
 
     // ============ RISK SUMMARY ============
-    function renderRiskSummary(d, level) {
-        const drivers = (d.keyDrivers || []).slice(0, 3).join(', ') || '—';
+   function renderRiskSummary(d, level) {
+    const forecast = d.severeWeatherForecast || [];
+    const nextHours = forecast.slice(0, 6);
 
-        return `
-            <section class="risk-summary" aria-label="Risk summary">
-                <div class="risk-summary-score">
-                    <div class="risk-summary-score-value">${d.risk}</div>
-                    <div class="risk-summary-score-max">/ 100</div>
-                    <div class="risk-summary-level ${level}">${d.level}</div>
+    const maxRainfall = nextHours.length
+        ? Math.max(...nextHours.map(item => Number(item.rainfall || 0)))
+        : 0;
+
+    const maxProbability = nextHours.length
+        ? Math.max(
+            ...nextHours.map(
+                item => Number(item.precipitationProbability || 0)
+            )
+        )
+        : 0;
+
+    const maxWind = nextHours.length
+        ? Math.max(
+            ...nextHours.map(
+                item => Number(item.windGusts || item.windSpeed || 0)
+            )
+        )
+        : 0;
+
+    return `
+        <section class="risk-summary" aria-label="Forecast summary">
+
+            <div class="risk-summary-score">
+                <div class="risk-summary-score-value">
+                    ${Number(d.risk).toFixed(0)}
                 </div>
-                <div class="risk-summary-details">
-                    <div class="risk-summary-item">
-                        <div class="risk-summary-item-label">TREND</div>
-                        <div class="risk-summary-item-value">${d.interpretation?.trend || 'Increasing'}</div>
+
+                <div class="risk-summary-score-max">
+                    / 100
+                </div>
+
+                <div class="risk-summary-level ${level}">
+                    ${d.level}
+                </div>
+            </div>
+
+            <div class="risk-summary-details">
+
+                <div class="risk-summary-item">
+                    <div class="risk-summary-item-label">
+                        FORECAST WINDOW
                     </div>
-                    <div class="risk-summary-item">
-                        <div class="risk-summary-item-label">PRIMARY DRIVERS</div>
-                        <div class="risk-summary-item-value">${drivers}</div>
-                    </div>
-                    <div class="risk-summary-item">
-                        <div class="risk-summary-item-label">EXPOSURE</div>
-                        <div class="risk-summary-item-value">${Utils.formatNumber(d.population)} people · ${d.roads} roads · ${d.schools} schools · ${d.hospitals} hospital</div>
-                    </div>
-                    <div class="risk-summary-item">
-                        <div class="risk-summary-item-label">LOCATION</div>
-                        <div class="risk-summary-item-value">${d.location}, ${d.state}</div>
+
+                    <div class="risk-summary-item-value">
+                        Next 6 hours
                     </div>
                 </div>
-                <div class="risk-summary-cta">
-                    <a href="${ROUTES.riskMap}" class="btn btn-primary btn-lg">View on Risk Map →</a>
-                    <a href="${ROUTES.dashboard}" class="btn btn-outline">Back to Dashboard</a>
+
+                <div class="risk-summary-item">
+                    <div class="risk-summary-item-label">
+                        PEAK RAINFALL
+                    </div>
+
+                    <div class="risk-summary-item-value">
+                        ${maxRainfall.toFixed(1)} mm/h
+                    </div>
                 </div>
-            </section>
-        `;
-    }
+
+                <div class="risk-summary-item">
+                    <div class="risk-summary-item-label">
+                        PRECIPITATION PROBABILITY
+                    </div>
+
+                    <div class="risk-summary-item-value">
+                        ${maxProbability.toFixed(0)}%
+                    </div>
+                </div>
+
+                <div class="risk-summary-item">
+                    <div class="risk-summary-item-label">
+                        MAX WIND GUST
+                    </div>
+
+                    <div class="risk-summary-item-value">
+                        ${maxWind.toFixed(1)} km/h
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="risk-summary-cta">
+                <a href="${ROUTES.riskMap}" class="btn btn-primary btn-lg">
+                    View on Risk Map →
+                </a>
+
+                <a href="${ROUTES.dashboard}" class="btn btn-outline">
+                    Back to Dashboard
+                </a>
+            </div>
+
+        </section>
+    `;
+}
 
     // ============ EVENT LISTENERS ============
     function setupEventListeners() {
@@ -1162,7 +2030,9 @@ const isLive = d.isLive === true || d.modelConnected === true;
             'settings': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4"/></svg>',
             'cloud-rain': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>',
             'droplet': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
-            'arrow-up': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>'
+'arrow-up': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
+'wind': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h9a3 3 0 1 0-3-3"/><path d="M3 14h14a3 3 0 1 1-3 3"/><path d="M5 18h5"/><path d="M5 7h3"/><path d="M17 8h3"/></svg>',
+'thermometer': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/><line x1="12" y1="11" x2="12" y2="18"/></svg>'
         };
         return icons[name] || '';
     }

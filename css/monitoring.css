@@ -944,3 +944,56 @@
         animation: none !important;
     }
 }
+/* ============ 6-HOUR WEATHER FORECAST ============ */
+
+.weather-forecast-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(130px, 1fr));
+    gap: 12px;
+    width: 100%;
+}
+
+.weather-forecast-card {
+    padding: 16px 12px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.weather-forecast-time {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 12px;
+}
+
+.weather-forecast-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0F172A;
+}
+
+.weather-forecast-label {
+    font-size: 11px;
+    color: #64748B;
+    margin-bottom: 12px;
+}
+
+.weather-forecast-detail {
+    font-size: 11px;
+    color: #475569;
+    margin-top: 6px;
+}
+
+@media (max-width: 900px) {
+    .weather-forecast-grid {
+        grid-template-columns: repeat(3, minmax(120px, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .weather-forecast-grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
+}

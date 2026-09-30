@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="SAHAYAK Command Center — AI-driven landslide risk monitoring for Northeast India">
+    <meta name="description" content="SAHAYAK Command Center — AI-driven hyper-local severe weather nowcasting and early warning">
     <title>Command Center — SAHAYAK</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
                 <img src="./logo.png" class="my-img">
                 <div class="brand-text">
                     <span class="brand-name">SAHAYAK</span>
-                    <span class="brand-sub">NER Landslide Intelligence</span>
+                    <span class="brand-sub">Severe Weather Intelligence</span>
                 </div>
             </div>
 
@@ -55,8 +55,8 @@
             </button>
 
             <div class="header-title-wrap">
-                <h1 class="header-title">NER LANDSLIDE SITUATION AWARENESS</h1>
-                <div class="header-subtitle">AI-powered landslide risk monitoring and early action</div>
+                <h1 class="header-title">SEVERE WEATHER SITUATION AWARENESS</h1>
+<div class="header-subtitle">AI-powered hyper-local weather nowcasting and early warning</div>
             </div>
 
             <div class="header-search">
@@ -145,7 +145,7 @@
                     <div class="map-header">
                         <div class="map-title">
                             <span class="map-title-dot"></span>
-                            Northeast India — Live Risk Monitor
+                           Northeast India — Live Severe Weather Monitor
                         </div>
                     </div>
                     <div class="map-container">
@@ -174,13 +174,13 @@
                             </div>
                             <div class="layer-group">
                                 <div class="layer-group-label">HAZARD</div>
-                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="risk" checked> AI Landslide Risk</label>
-                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="historical"> Historical Landslides</label>
-                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="rainfall"> Rainfall</label>
-                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="soil"> Soil Moisture</label>
-                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="slope"> Slope</label>
-                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="elevation"> Elevation</label>
-                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="satellite"> Satellite Change</label>
+                                <label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="risk" checked> AI Severe Weather Risk</label>
+<label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="historical"> Historical Weather Events</label>
+<label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="rainfall"> Rainfall</label>
+<label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="soil"> Atmospheric Conditions</label>
+<label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="slope"> Terrain</label>
+<label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="elevation"> Elevation</label>
+<label class="layer-item"><input type="checkbox" class="layer-checkbox" data-layer="satellite"> Satellite Intelligence</label>
                             </div>
                             <div class="layer-group">
                                 <div class="layer-group-label">EXPOSURE</div>
@@ -203,7 +203,7 @@
 
                         <!-- Legend -->
                         <div class="map-legend">
-                            <div class="map-legend-title">RISK LEVEL</div>
+                            <div class="map-legend-title">WEATHER RISK</div>
                             <div class="map-legend-item"><span class="legend-dot safe"></span> SAFE (0-30)</div>
                             <div class="map-legend-item"><span class="legend-dot watch"></span> WATCH (31-60)</div>
                             <div class="map-legend-item"><span class="legend-dot alert"></span> ALERT (61-80)</div>
@@ -218,7 +218,7 @@
                     <div id="riskTrendChart"></div>
                     <div class="intel-card">
                         <div class="intel-card-header">
-                            <div class="intel-card-title">Environmental Conditions</div>
+                           <div class="intel-card-title">Current Weather Conditions</div>
                         </div>
                         <div class="intel-card-body">
                             <div class="env-grid" id="envGrid"></div>
@@ -232,7 +232,7 @@
             <div class="section-card">
                 <div class="section-card-header">
                     <div class="section-card-title">
-                        Active Early Warnings
+                       Active Severe Weather Warnings
                         <span class="count-badge" id="alertCount">4</span>
                     </div>
                     <a href="alerts.html" class="section-card-link">View all alerts →</a>
@@ -242,17 +242,7 @@
                 </div>
             </div>
 
-            <!-- Exposure -->
-            <div class="section-card">
-                <div class="section-card-header">
-                    <div class="section-card-title">Impact & Exposure Summary</div>
-                </div>
-                <div class="section-card-body">
-                    <div class="exposure-grid" id="exposureGrid"></div>
-                    <div style="text-align: center; margin-top: var(--space-3); font-size: 10px; color: var(--text-400); font-style: italic;">
-                        Synthetic demonstration data
-                    </div>
-                </div>
+
             </div>
 
             <!-- Field Operations + Data Freshness -->

@@ -14,11 +14,10 @@ const state = {
     isOffline: false,
     notifications: [],
     layers: {
-        risk: true,
-        rainfall: false,
-        terrain: false,
-        infrastructure: false
-    }
+    risk: true,
+    rainfall: false,
+    terrain: false
+}
 };
 
     // ============ INITIALIZATION ============
@@ -92,9 +91,9 @@ try {
 renderRiskZones();
 renderLocationPanelPlaceholder();
 renderEnvironmentalCards();
-renderAIExplanation();
+
 renderAlerts();
-renderExposure();
+
 renderFieldOperations();
 renderDataFreshness();
 renderQuickActions();
@@ -147,7 +146,7 @@ function renderMetrics() {
           value: fmt(warning.length), foot },
         { label: 'High Risk Zones', icon: 'alert-circle', riskClass: 'risk-alert', statusClass: 'alert', status: 'ALERT',
           value: fmt(alert.length), foot },
-        { label: 'Active Alerts', icon: 'bell', value: '9', foot: 'No alert backend connected' },
+        { label: 'Active Warnings', icon: 'bell', value: '4', foot: 'Weather warnings' },
         { label: 'Field Reports', icon: 'clipboard', value: '5', foot: 'No report backend connected' },
         { label: 'Verified Incidents', icon: 'check-circle', value: '2', foot: 'No verification backend connected' },
         { label: 'Population at Risk', icon: 'users',
@@ -316,7 +315,7 @@ function renderRiskZones() {
                     <button class="location-panel-close" onclick="window.SahayakDashboard.closeLocationPanel()" aria-label="Close">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
-                    <div class="location-label">HIGH LANDSLIDE RISK</div>
+                   <div class="location-label">HIGH SEVERE WEATHER RISK</div>
                     <div class="location-name">${zone.location}</div>
                     <div class="location-state">${zone.state}</div>
                     <div class="location-risk-row">
@@ -334,21 +333,21 @@ function renderRiskZones() {
                         <span class="location-param-value">${zone.rainfall} mm / 72h</span>
                     </div>
                     <div class="location-param">
-                        <span class="location-param-label">Soil Moisture</span>
+                       <div class="location-param-label">Atmospheric Conditions</div>
                         <span class="location-param-value">${zone.soilMoisture}%</span>
                     </div>
                     <div class="location-param">
-                        <span class="location-param-label">Slope</span>
+                        <div class="location-param-label">Weather Intensity</div>
                         <span class="location-param-value">${zone.slope}°</span>
                     </div>
                     <div class="location-param">
-                        <span class="location-param-label">Elevation</span>
+                        <div class="location-param-label">Weather Conditions</div>
                         <span class="location-param-value">${Utils.formatNumber(zone.elevation)} m</span>
                     </div>
-                    <div class="location-param">
-                        <span class="location-param-label">Historical Landslides</span>
-                        <span class="location-param-value">${zone.historical}</span>
-                    </div>
+                   <div class="location-param">
+    <span class="location-param-label">Weather Events</span>
+    <span class="location-param-value">${zone.historical ?? '--'}</span>
+</div>
                     <div class="location-param">
                         <span class="location-param-label">Satellite Change</span>
                         <span class="location-param-value">${zone.satelliteChange ? 'Detected' : 'None'}</span>
@@ -371,17 +370,16 @@ function renderRiskZones() {
                     </div>
                 </div>
                 <div style="padding: var(--space-3) var(--space-4); background: var(--navy-900); color: var(--white);">
-                    <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--cyan); margin-bottom: var(--space-2);">WHY IS THIS AREA HIGH RISK?</div>
+                    <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--cyan); margin-bottom: var(--space-2);">WHY IS THIS AREA AT ELEVATED WEATHER RISK?</div>
                     <div class="ai-bars">${factorsHtml}</div>
                 </div>
                 <div class="location-actions">
                     <a href="${ROUTES.riskAnalysis}" class="btn btn-primary">View Analysis →</a>
                     <a href="${ROUTES.alerts}" class="btn btn-outline">Generate Warning</a>
                     <button class="btn btn-outline" onclick="window.SahayakDashboard.openAssignModal()">Assign Officer</button>
-                    <a href="${ROUTES.infrastructure}" class="btn btn-outline">Infrastructure</a>
-                </div>
+    
                 <div style="padding: var(--space-2) var(--space-4); text-align: center; font-size: 10px; color: var(--text-400); font-style: italic; background: var(--surface);">
-                    DEMO DATA — Illustrative values
+                    LIVE / MODEL DATA
                 </div>
             </div>
         `;
@@ -436,50 +434,73 @@ function renderEnvironmentalCards() {
     const grid = document.getElementById('envGrid');
     if (!grid) return;
 
-    const data = state.monitoringData;
+    const zone =
+        state.selectedZone ||
+        state.riskZones.find(z => z.isLive) ||
+        state.riskZones[0];
 
-    const rainfall = data?.rainfall || {};
-    const terrain = data?.terrain || {};
-
-    const rain72 = rainfall.h72 ?? '--';
-    const soil = terrain.soilMoisture ?? '--';
-    const slope = terrain.slope ?? '--';
-    const elevation = terrain.elevation ?? '--';
+    if (!zone) {
+        grid.innerHTML = '';
+        return;
+    }
 
     const cards = [
         {
             icon: 'cloud-rain',
-            value: `${rain72} mm`,
-            label: '72h accumulation',
-            status: rainfall.isDemo ? 'high' : 'live',
-            statusLabel: rainfall.isDemo ? 'DEMO' : 'LIVE'
+            value: `${Number(zone.rainfall ?? 0).toFixed(1)} mm/h`,
+            label: 'Rainfall intensity',
+            status: zone.isLive ? 'live' : 'high',
+            statusLabel: zone.isLive ? 'LIVE' : 'UNAVAILABLE'
         },
         {
             icon: 'droplet',
-            value: `${soil}%`,
-            label: 'Current estimate',
-            status: terrain.isDemo ? 'high' : 'live',
-            statusLabel: terrain.isDemo ? 'DEMO' : 'LIVE'
+            value: `${Number(zone.precipitationProbability ?? 0).toFixed(0)}%`,
+            label: 'Rain probability',
+            status: zone.isLive ? 'live' : 'high',
+            statusLabel: zone.isLive ? 'LIVE' : 'UNAVAILABLE'
         },
         {
-            icon: 'mountain',
-            value: `${slope}°`,
-            label: 'Terrain slope',
-            status: terrain.isDemo ? 'steep' : 'live',
-            statusLabel: terrain.isDemo ? 'DEMO' : 'LIVE'
+            icon: 'cloud',
+            value: `${Number(zone.humidity ?? 0).toFixed(0)}%`,
+            label: 'Relative humidity',
+            status: zone.isLive ? 'live' : 'high',
+            statusLabel: zone.isLive ? 'LIVE' : 'UNAVAILABLE'
         },
         {
-            icon: 'mountain',
-            value: `${elevation} m`,
-            label: 'Elevation',
-            status: terrain.isDemo ? 'monitor' : 'live',
-            statusLabel: terrain.isDemo ? 'DEMO' : 'LIVE'
-        }
+            icon: 'cloud',
+            value: `${Number(zone.cloudCover ?? 0).toFixed(0)}%`,
+            label: 'Cloud cover',
+            status: zone.isLive ? 'live' : 'high',
+            statusLabel: zone.isLive ? 'LIVE' : 'UNAVAILABLE'
+        },
+       {
+    icon: 'wind',
+    value: `${Number(zone.windSpeed ?? 0).toFixed(1)} km/h`,
+    label: 'Wind speed',
+    status: zone.isLive ? 'live' : 'high',
+    statusLabel: zone.isLive ? 'LIVE' : 'UNAVAILABLE'
+},
+{
+    icon: 'wind',
+    value: `${Number(zone.windGusts ?? 0).toFixed(1)} km/h`,
+    label: 'Wind gusts',
+    status: zone.isLive ? 'live' : 'high',
+    statusLabel: zone.isLive ? 'LIVE' : 'UNAVAILABLE'
+},
+{
+    icon: 'sun',
+    value: `${Number(zone.temperature ?? 0).toFixed(1)}°C`,
+    label: 'Temperature',
+    status: zone.isLive ? 'live' : 'high',
+    statusLabel: zone.isLive ? 'LIVE' : 'UNAVAILABLE'
+}
     ];
 
     grid.innerHTML = cards.map(c => `
         <div class="env-card">
+
             <div class="env-card-header">
+
                 <div class="env-card-icon">
                     ${getIcon(c.icon)}
                 </div>
@@ -487,6 +508,7 @@ function renderEnvironmentalCards() {
                 <span class="env-card-status ${c.status}">
                     ${c.statusLabel}
                 </span>
+
             </div>
 
             <div class="env-card-value">
@@ -496,133 +518,131 @@ function renderEnvironmentalCards() {
             <div class="env-card-label">
                 ${c.label}
             </div>
+
         </div>
     `).join('');
 }
+console.log("RENDERING ALERTS");
+    // ============ ALERTS ============
+    function renderAlerts() {
+    const list = document.getElementById('alertsList');
+    if (!list) return;
 
-    // ============ AI EXPLANATION ============
-   function renderAIExplanation() {
-    const container = document.getElementById('aiExplanation');
-    if (!container) return;
+    const liveZones = state.riskZones.filter(
+        zone => zone.isLive
+    );
 
-    const zone =
-        state.selectedZone ||
-        state.riskZones.find(z => z.isLive) ||
-        state.riskZones[0];
-
-    if (!zone) {
-        container.innerHTML = `
-            <div class="ai-explanation">
-                <div class="ai-explanation-title">
-                    Why is this area high risk?
+    if (!liveZones.length) {
+        list.innerHTML = `
+            <div class="alert-empty">
+                <div class="alert-empty-icon">
+                    ${getIcon('cloud')}
                 </div>
-                <div class="ai-explanation-text">
-                    Risk analysis data is currently unavailable.
+                <div class="alert-empty-title">
+                    No live weather warnings available
+                </div>
+                <div class="alert-empty-text">
+                    Live severe-weather data is currently unavailable.
                 </div>
             </div>
         `;
         return;
     }
 
-    const factors = Array.isArray(zone.factors)
-        ? zone.factors
-        : [];
+    const warnings = liveZones
+        .filter(zone => Number(zone.risk || 0) >= 31)
+        .sort((a, b) =>
+            Number(b.risk || 0) - Number(a.risk || 0)
+        );
 
-    const barsHtml = factors.map(f => {
-        const value = Number(f.value || 0);
-        const pct = Math.min(100, (value / 40) * 100);
-
-        return `
-            <div class="ai-bar" style="--target-width: ${pct}%">
-                <div class="ai-bar-label">
-                    ${f.label}
+    if (!warnings.length) {
+        list.innerHTML = `
+            <div class="alert-empty">
+                <div class="alert-empty-icon">
+                    ${getIcon('check-circle')}
                 </div>
-
-                <div class="ai-bar-track">
-                    <div class="ai-bar-fill"></div>
+                <div class="alert-empty-title">
+                    No active severe weather warnings
                 </div>
-
-                <div class="ai-bar-value">
-                    ${value > 0 ? '+' : ''}${value}
+                <div class="alert-empty-text">
+                    Current forecast conditions are below the warning threshold.
                 </div>
             </div>
         `;
-    }).join('');
-
-    container.innerHTML = `
-        <div class="ai-explanation">
-
-            <div class="ai-explanation-title">
-                <svg viewBox="0 0 24 24"
-                     fill="none"
-                     stroke="currentColor"
-                     stroke-width="2"
-                     stroke-linecap="round"
-                     stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-
-                Why is this area high risk?
-            </div>
-
-            <div class="ai-bars">
-                ${barsHtml}
-            </div>
-
-            <div class="ai-explanation-text">
-                Risk factors shown above are generated from the
-                current ML risk-score response for this location.
-            </div>
-
-            <div class="ai-explanation-footer">
-
-                <span>
-                    ${zone.isLive
-                        ? 'Live ML model explanation'
-                        : 'Demo explanation'}
-                </span>
-
-                <a href="${ROUTES.riskAnalysis}">
-                    View Full Analysis →
-                </a>
-
-            </div>
-
-        </div>
-    `;
-
-    setTimeout(() => {
-        container.querySelectorAll('.ai-bar').forEach((bar, i) => {
-            setTimeout(() => {
-                bar.classList.add('revealed');
-            }, i * 120);
-        });
-    }, 200);
-}
-
-    // ============ ALERTS ============
-    function renderAlerts() {
-        const list = document.getElementById('alertsList');
-        if (!list) return;
-
-        list.innerHTML = DEMO_DATA.alerts.map(a => `
-            <div class="alert-card severity-${a.severity}" onclick="window.SahayakDashboard.viewAlert('${a.id}')">
-                <span class="alert-severity ${a.severity}">${a.severity.toUpperCase()}</span>
-                <div class="alert-type">${a.type}</div>
-                <div class="alert-location">${a.location}, ${a.state}</div>
-                <div class="alert-message">${a.message}</div>
-                <div class="alert-meta">
-                    <div class="alert-meta-item"><strong>Risk ${a.risk}/100</strong></div>
-                    <div class="alert-meta-item"><strong>${Utils.formatNumber(a.population)}</strong> people</div>
-                    <div class="alert-meta-item">${a.roads} roads</div>
-                    <div class="alert-meta-item">${a.timestamp}</div>
-                </div>
-            </div>
-        `).join('');
+        return;
     }
 
+    list.innerHTML = warnings.map(zone => {
+
+        const risk = Number(zone.risk || 0);
+
+        let severity = 'watch';
+
+        if (risk >= 81) {
+            severity = 'warning';
+        } else if (risk >= 61) {
+            severity = 'alert';
+        }
+
+        let weatherMessage =
+            'Elevated severe-weather conditions are forecast.';
+
+        if ([95, 96, 99].includes(
+            Number(zone.weatherCode)
+        )) {
+            weatherMessage =
+                'Thunderstorm conditions are forecast.';
+        } else if (Number(zone.rainfall) >= 10) {
+            weatherMessage =
+                'Heavy rainfall conditions are forecast.';
+        } else if (Number(zone.windGusts) >= 50) {
+            weatherMessage =
+                'Strong wind gust conditions are forecast.';
+        }
+
+        return `
+            <div class="alert-card severity-${severity}"
+                 onclick="window.SahayakDashboard.viewAlert('${zone.id}')">
+
+                <span class="alert-severity ${severity}">
+                    ${severity.toUpperCase()}
+                </span>
+
+                <div class="alert-type">
+                    ${zone.weatherEvent || 'Severe Weather Risk'}
+                </div>
+
+                <div class="alert-location">
+                    ${zone.location || 'Monitored area'}
+                    ${zone.state ? `, ${zone.state}` : ''}
+                </div>
+
+                <div class="alert-message">
+                    ${weatherMessage}
+                </div>
+
+                <div class="alert-meta">
+
+                    <div class="alert-meta-item">
+                        <strong>Risk ${risk}/100</strong>
+                    </div>
+
+                    <div class="alert-meta-item">
+                        ${zone.precipitationProbability ?? '--'}%
+                        rain probability
+                    </div>
+
+                    <div class="alert-meta-item">
+                        ${zone.windGusts ?? '--'} km/h
+                        max gust
+                    </div>
+
+                </div>
+
+            </div>
+        `;
+    }).join('');
+}
     function viewAlert(alertId) {
         const alert = DEMO_DATA.alerts.find(a => a.id === alertId);
         if (!alert) return;
@@ -1028,7 +1048,12 @@ function renderEnvironmentalCards() {
             'heart': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
             'bridge': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18h18M5 18V9a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v9M9 6v12M15 6v12"/></svg>',
             'cloud-rain': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>',
-            'droplet': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>'
+            'droplet': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>',
+          'wind': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h9a3 3 0 1 0-3-3"/><path d="M3 14h14a3 3 0 1 1-3 3"/><path d="M5 18h5"/><path d="M5 7h3"/><path d="M17 8h3"/></svg>',
+
+'thermometer': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/><line x1="12" y1="11" x2="12" y2="18"/></svg>',
+
+'sun': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/></svg>',
         };
         return icons[name] || '';
     }

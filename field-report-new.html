@@ -73,7 +73,7 @@
   <span class="status-bar-value" id="statusUserRole">User</span>
 </div>
       <div class="status-bar-divider"></div>
-      <div class="status-bar-item"><span class="status-bar-label">Session</span><span class="status-bar-value" style="color: var(--watch);">Prototype Session</span></div>
+
     </div>
 
     <main class="main-content">
@@ -99,13 +99,17 @@
             Report Type <span class="required">*</span>
           </div>
           <div class="severity-radio-group" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));">
-            <label class="severity-radio"><input type="radio" name="reportType" value="Landslide"><span class="severity-radio-label warning">Landslide</span></label>
-            <label class="severity-radio"><input type="radio" name="reportType" value="Road Crack"><span class="severity-radio-label alert">Road Crack</span></label>
-            <label class="severity-radio"><input type="radio" name="reportType" value="Soil Movement"><span class="severity-radio-label watch">Soil Movement</span></label>
-            <label class="severity-radio"><input type="radio" name="reportType" value="Rockfall"><span class="severity-radio-label warning">Rockfall</span></label>
-            <label class="severity-radio"><input type="radio" name="reportType" value="Water Seepage"><span class="severity-radio-label safe">Water Seepage</span></label>
-            <label class="severity-radio"><input type="radio" name="reportType" value="Blocked Road"><span class="severity-radio-label alert">Blocked Road</span></label>
-            <label class="severity-radio"><input type="radio" name="reportType" value="Other"><span class="severity-radio-label watch">Other</span></label>
+           <label class="severity-radio"><input type="radio" name="reportType" value="Heavy Rainfall"><span class="severity-radio-label warning">Heavy Rainfall</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Flash Flooding / Waterlogging"><span class="severity-radio-label warning">Flash Flooding / Waterlogging</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Strong Wind / Wind Damage"><span class="severity-radio-label alert">Strong Wind / Wind Damage</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Thunderstorm"><span class="severity-radio-label warning">Thunderstorm</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Blocked Road"><span class="severity-radio-label alert">Blocked Road</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Road Damage / Crack"><span class="severity-radio-label alert">Road Damage / Crack</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Soil Movement"><span class="severity-radio-label watch">Soil Movement</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Rockfall"><span class="severity-radio-label warning">Rockfall</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Landslide"><span class="severity-radio-label warning">Landslide</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Water Seepage"><span class="severity-radio-label safe">Water Seepage</span></label>
+<label class="severity-radio"><input type="radio" name="reportType" value="Other"><span class="severity-radio-label watch">Other</span></label>
           </div>
         </div>
 
@@ -124,7 +128,7 @@
               📍 Capture Location
             </button>
           </div>
-          <div class="form-help">Uses browser geolocation. If unavailable, demo coordinates will be used.</div>
+          <div class="form-help">Uses browser geolocation when available. Location accuracy depends on the device and positioning service.</div>
         </div>
 
         <!-- Photo Upload -->
@@ -168,19 +172,19 @@
           <div class="form-help">Be specific: location, size, visible damage, immediate risks.</div>
         </div>
 
-        <!-- AI Match -->
-        <div class="form-section">
-          <div class="form-section-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/></svg>
-            AI Prediction Match (Optional)
-          </div>
-          <div class="checkbox-group">
-            <label class="checkbox-item"><input type="radio" name="aiMatch" value="yes"> ✓ Yes — matches AI prediction</label>
-            <label class="checkbox-item"><input type="radio" name="aiMatch" value="partially"> ◐ Partially — some elements match</label>
-            <label class="checkbox-item"><input type="radio" name="aiMatch" value="no"> ✗ No — differs from AI prediction</label>
-            <label class="checkbox-item"><input type="radio" name="aiMatch" value="unable"> ? Unable to determine</label>
-          </div>
-        </div>
+<!-- Risk Assessment Match -->
+<div class="form-section">
+  <div class="form-section-title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+    Match with System Risk Assessment (Optional)
+  </div>
+  <div class="checkbox-group">
+    <label class="checkbox-item"><input type="radio" name="aiMatch" value="yes"> ✓ Yes — matches current risk assessment</label>
+    <label class="checkbox-item"><input type="radio" name="aiMatch" value="partially"> ◐ Partially — some elements match</label>
+    <label class="checkbox-item"><input type="radio" name="aiMatch" value="no"> ✗ No — differs from current risk assessment</label>
+    <label class="checkbox-item"><input type="radio" name="aiMatch" value="unable"> ? Unable to determine</label>
+  </div>
+</div>
 
         <!-- Officer Details -->
         <div class="form-section">
@@ -211,9 +215,7 @@
           <button class="btn btn-primary" style="flex: 2;" onclick="window.SahayakFieldReportNew.submitReport()">Submit Report →</button>
         </div>
 
-        <div style="margin-top: var(--space-5); padding: var(--space-3); background: var(--watch-bg); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: var(--radius-md); font-size: var(--fs-xs); color: var(--watch); text-align: center;">
-          <strong>DEMO:</strong> This is a prototype. No real data is transmitted.
-        </div>
+        
       </div>
     </main>
   </div>
