@@ -347,6 +347,42 @@ function renderRiskZones() {
     // ============ LOCATION PANEL ============
     function openLocationPanel(zone) {
         state.selectedZone = zone;
+        Services.getSevereWeatherForecast(zone.location)
+    .then(forecast => {
+        if (!forecast || !forecast.length) return;
+
+        const current = forecast[0];
+
+        state.selectedZone = {
+            ...state.selectedZone,
+            rainfall: current.rainfall,
+            precipitationProbability: current.precipitationProbability,
+            humidity: current.humidity,
+            cloudCover: current.cloudCover,
+            windSpeed: current.windSpeed,
+            windGusts: current.windGusts,
+            temperature: current.temperature,
+            weather: forecast,
+            isLive: true
+        };
+
+        renderEnvironmentalCards();
+
+        state.monitoringData = {
+            ...(state.monitoringData || {}),
+            weather: forecast
+        };
+
+        renderSevereOutlook();
+    })
+    .catch(error => {
+        console.warn('Selected location weather unavailable:', error);
+    });
+        const weatherCard = document.getElementById('weatherConditionsCard');
+if (weatherCard) weatherCard.style.display = 'block';
+
+const severeOutlook = document.getElementById('severeOutlook');
+if (severeOutlook) severeOutlook.style.display = 'block';
         const container = document.getElementById('locationPanelContainer');
         if (!container) return;
 

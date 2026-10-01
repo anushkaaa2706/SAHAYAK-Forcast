@@ -789,12 +789,12 @@ function renderAIExplanation(d) {
 
                 <div class="ai-factors-section">
 
-                    <div class="ai-factors-title">
-    Top Model Risk Factors · Contribution Score
+                 <div class="ai-factors-title">
+    Model Risk Factor Contributions
 </div>
 
 <div class="ai-factors-subtitle">
-    Higher values indicate stronger influence on the model's current assessment.
+    Positive values increase the assessed risk, while negative values reduce it. Larger absolute values indicate stronger influence.
 </div>
 
                     <div class="ai-factors-list">

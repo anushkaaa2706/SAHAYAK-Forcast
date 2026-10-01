@@ -216,14 +216,71 @@
                 <div class="intel-panel">
                     <div id="locationPanelContainer"></div>
                     <div id="riskTrendChart"></div>
-                    <div class="intel-card">
-                        <div class="intel-card-header">
-                           <div class="intel-card-title">Current Weather Conditions</div>
-                        </div>
-                        <div class="intel-card-body">
-                            <div class="env-grid" id="envGrid"></div>
-                        </div>
-                    </div>
+                    <div class="intel-card" id="weatherConditionsCard" style="display: none;">
+    <div class="intel-card-header">
+        <div class="intel-card-title">Current Weather Conditions</div>
+    </div>
+    <div class="intel-card-body">
+        <div class="env-grid" id="envGrid"></div>
+    </div>
+</div>
+</div>
+
+<div class="intel-card" id="selectedLocationCard" style="display: none;">
+    <div class="intel-card-header">
+        <div class="intel-card-title">Selected Location</div>
+        <span class="env-card-status live" id="selectedLocationStatus">LIVE</span>
+    </div>
+
+    <div class="intel-card-body">
+
+        <div class="selected-location-name" id="selectedLocationName">
+            Select a location on the map
+        </div>
+
+        <div class="selected-location-risk">
+            <div>
+                <div class="selected-location-risk-label">Risk Index</div>
+                <div class="selected-location-risk-value">
+                    <span id="selectedLocationRisk">--</span><small>/100</small>
+                </div>
+            </div>
+
+            <div class="selected-location-level" id="selectedLocationLevel">
+                --
+            </div>
+        </div>
+
+        <div class="selected-location-summary" id="selectedLocationSummary">
+            Click a numbered location on the map to view its current intelligence.
+        </div>
+
+        <div class="selected-location-meta">
+            <div>
+                <span>📍</span>
+                <span id="selectedLocationCoords">Coordinates unavailable</span>
+            </div>
+
+            <div>
+                <span>🕒</span>
+                <span id="selectedLocationUpdated">Waiting for selection</span>
+            </div>
+        </div>
+
+        <button
+            type="button"
+            class="btn btn-primary"
+            id="selectedLocationAnalysisBtn">
+            View Full Analysis
+        </button>
+
+    </div>
+</div>
+
+<div class="location-selection-hint">
+    <span class="location-selection-hint-icon">📍</span>
+    <span>Click a location on the map to view detailed risk intelligence and current weather conditions.</span>
+</div>
                     <div id="aiExplanation"></div>
                 </div>
             </div>
@@ -239,7 +296,7 @@
                 </div>
                 <div class="section-card-body">
                     <div class="alerts-list" id="alertsList"></div>
-                    <div id="severeOutlook"></div>
+                    <div id="severeOutlook" style="display: none;"></div>
                 </div>
             </div>
 
