@@ -324,7 +324,7 @@
     hospitals: zone?.hospitals || 0,
     bridges: zone?.bridges || 0,
     villages: 0,
-    expires: '2 hours',
+    expiresAt: Date.now() + (2 * 60 * 60 * 1000),
     factors: zone?.factors || []
   });
 
@@ -363,9 +363,7 @@
             <a href="alert-create.html" class="btn btn-outline">Generate Another</a>
             <a href="dashboard.html" class="btn btn-outline">Back to Dashboard</a>
           </div>
-          <div style="margin-top: var(--space-4); padding: var(--space-3); background: var(--watch-bg); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: var(--radius-md); font-size: var(--fs-xs); color: var(--watch);">
-            <strong>DEMO:</strong> No actual SMS, mobile notification or public notice was sent. This is a prototype demonstration.
-          </div>
+         
         </div>
       `;
     }

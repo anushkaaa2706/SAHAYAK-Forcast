@@ -2092,9 +2092,9 @@ function renderEnvironmentalConditions(d) {
                     View on Risk Map →
                 </a>
 
-                <a href="${ROUTES.dashboard}" class="btn btn-outline">
-                    Back to Dashboard
-                </a>
+               <a href="${ROUTES.dashboard}" class="btn btn-primary">
+    Back to Dashboard
+</a>
             </div>
 
         </section>

@@ -486,25 +486,92 @@ return hoursAgo === 0 ? 'Now' : `${hoursAgo}h ago`;
 
     renderTerrainProfile(t);
 
-    const compEl = document.getElementById('terrainComparison');
-    if (compEl) {
-      compEl.innerHTML = `
-        <div class="comparison-box">
-          <div class="comparison-box-title">Live Terrain Data</div>
-          <div class="comparison-row"><span class="comparison-row-label">Elevation</span><span class="comparison-row-value">${Number.isFinite(Number(t.elevation)) ? `${Utils.formatNumber(t.elevation)} m` : '—'}</span></div>
-          <div class="comparison-row"><span class="comparison-row-label">DEM</span><span class="comparison-row-value" style="font-family: inherit;">${t.dataset || 'ASTER 30m'}</span></div>
-          <div class="comparison-row"><span class="comparison-row-label">Slope</span><span class="comparison-row-value">${slope == null ? '—' : `${slope}°`}</span></div>
-          <div class="comparison-row"><span class="comparison-row-label">Aspect</span><span class="comparison-row-value">${t.aspect || '—'}</span></div>
-        </div>
-        <div class="comparison-box">
-          <div class="comparison-box-title">Soil / Interpretation</div>
-          <div class="comparison-row"><span class="comparison-row-label">Soil Moisture</span><span class="comparison-row-value">${moisture == null ? '—' : `${moisture}%`}</span></div>
-          <div class="comparison-row"><span class="comparison-row-label">Soil Type</span><span class="comparison-row-value" style="font-family: inherit;">${t.soilType || 'Not available'}</span></div>
-          <div class="comparison-row"><span class="comparison-row-label">Stability</span><span class="comparison-row-value"><span class="monitoring-summary-status ${stabilityLabel.toLowerCase()}">${stabilityLabel}</span></span></div>
-          <div class="comparison-row"><span class="comparison-row-label">Interpretation</span><span class="comparison-row-value" style="font-family: inherit;">${t.stabilitySource || 'Derived from terrain/weather variables'}</span></div>
-        </div>
-      `;
-    }
+   const compEl = document.getElementById('terrainComparison');
+
+if (compEl) {
+  compEl.innerHTML = `
+    <div class="comparison-box">
+
+      <div class="comparison-box-title">
+        Live Terrain & Soil Data
+      </div>
+
+      <div class="comparison-row">
+        <span class="comparison-row-label">
+          Elevation
+        </span>
+        <span class="comparison-row-value">
+          ${
+            Number.isFinite(Number(t.elevation))
+              ? `${Utils.formatNumber(t.elevation)} m`
+              : '—'
+          }
+          <small class="data-source-tag live">LIVE</small>
+        </span>
+      </div>
+
+      <div class="comparison-row">
+        <span class="comparison-row-label">
+          DEM
+        </span>
+        <span class="comparison-row-value">
+          ${t.dataset || '—'}
+          <small class="data-source-tag live">LIVE</small>
+        </span>
+      </div>
+
+      <div class="comparison-row">
+        <span class="comparison-row-label">
+          Slope
+        </span>
+        <span class="comparison-row-value">
+          ${slope == null ? '—' : `${slope}°`}
+          <small class="data-source-tag derived">DERIVED</small>
+        </span>
+      </div>
+
+      <div class="comparison-row">
+        <span class="comparison-row-label">
+          Aspect
+        </span>
+        <span class="comparison-row-value">
+          ${t.aspect || '—'}
+          <small class="data-source-tag derived">DERIVED</small>
+        </span>
+      </div>
+
+      <div class="comparison-row">
+        <span class="comparison-row-label">
+          Soil Moisture
+        </span>
+        <span class="comparison-row-value">
+          ${
+            Number.isFinite(Number(t.soilMoisture))
+              ? `${Number(t.soilMoisture).toFixed(1)}%`
+              : '—'
+          }
+          <small class="data-source-tag live">LIVE</small>
+        </span>
+      </div>
+
+      <div class="comparison-row">
+        <span class="comparison-row-label">
+          Stability
+        </span>
+        <span class="comparison-row-value">
+          ${t.stability || '—'}
+          <small class="data-source-tag derived">DERIVED</small>
+        </span>
+      </div>
+
+      <div class="comparison-source">
+        Live elevation & soil moisture data ·
+        Slope, aspect and stability derived from current terrain signals
+      </div>
+
+    </div>
+  `;
+}
 
     const devBanner = document.getElementById('deviationBanner');
     if (devBanner) {
@@ -591,18 +658,46 @@ return hoursAgo === 0 ? 'Now' : `${hoursAgo}h ago`;
     const notice = document.getElementById('satelliteSourceNotice');
     if (badge) badge.textContent = s?.isDemo ? 'FALLBACK' : 'LIVE SATELLITE';
     if (freshness) freshness.innerHTML = `<span class="freshness-inline-dot ${s?.isDemo ? 'delayed' : 'fresh'}"></span>${s?.isDemo ? 'Satellite source unavailable' : 'Live satellite imagery'}`;
-    if (notice) notice.innerHTML = `<strong>Data Source:</strong> ${s?.source || 'Satellite imagery'}${s?.note ? ` — ${s.note}` : ''}`;
+ if (notice) {
+    notice.innerHTML = `
+        <div class="satellite-analysis-note">
+            Satellite imagery is available from Esri World Imagery and NASA GIBS.
+            Derived indicators such as NDVI, NDWI and SAR require additional
+            remote-sensing processing and are not currently calculated.
+        </div>
+    `;
+}
 
     // Indicators
     const indicators = document.getElementById('satelliteIndicators');
     if (indicators) {
-      const items = [
-        { label: 'NDVI', value: s.ndvi, dotClass: s.ndvi?.includes('Change') ? 'detected' : 'stable' },
-        { label: 'NDWI', value: s.ndwi, dotClass: s.ndwi === 'Stable' ? 'stable' : 'detected' },
-        { label: 'Surface Change', value: s.surface, dotClass: s.surface === 'Detected' ? 'detected' : 'none' },
-        { label: 'SAR Indicator', value: s.sar, dotClass: s.sar === 'Elevated' ? 'elevated' : 'stable' },
-        { label: 'Vegetation', value: s.vegetation, dotClass: s.vegetation === 'Moderate' ? 'moderate' : 'stable' }
-      ];
+     const items = [
+  {
+    label: 'Satellite Imagery',
+    value: s?.imageryProvider ? 'Available' : 'Unavailable',
+    dotClass: s?.imageryProvider ? 'stable' : 'none'
+  },
+  {
+    label: 'NDVI',
+    value: 'Analysis unavailable',
+    dotClass: 'none'
+  },
+  {
+    label: 'NDWI',
+    value: 'Analysis unavailable',
+    dotClass: 'none'
+  },
+  {
+    label: 'Surface Change',
+    value: 'Analysis unavailable',
+    dotClass: 'none'
+  },
+  {
+    label: 'SAR Indicator',
+    value: 'Analysis unavailable',
+    dotClass: 'none'
+  }
+];
       indicators.innerHTML = items.map(i => `
           <div class="satellite-indicator">
             <div class="satellite-indicator-label">${i.label}</div>
@@ -615,38 +710,12 @@ return hoursAgo === 0 ? 'Now' : `${hoursAgo}h ago`;
     }
 
     // Change bars
-    const bars = document.getElementById('satelliteChangeBars');
-    if (bars) {
-      bars.innerHTML = `
-          <div class="satellite-change-bar" style="--target-width: ${s.vegetationPct || 0}%">
-            <div class="satellite-change-bar-header">
-              <span class="satellite-change-bar-label">Vegetation</span>
-              <span class="satellite-change-bar-value">${s.vegetationPct || 0}%</span>
-            </div>
-            <div class="satellite-change-bar-track"><div class="satellite-change-bar-fill"></div></div>
-          </div>
-          <div class="satellite-change-bar" style="--target-width: ${s.surfaceStabilityPct || 0}%">
-            <div class="satellite-change-bar-header">
-              <span class="satellite-change-bar-label">Surface Stability</span>
-              <span class="satellite-change-bar-value">${s.surfaceStabilityPct || 0}%</span>
-            </div>
-            <div class="satellite-change-bar-track"><div class="satellite-change-bar-fill"></div></div>
-          </div>
-          <div class="satellite-change-bar" style="--target-width: ${s.waterSoilPct || 0}%">
-            <div class="satellite-change-bar-header">
-              <span class="satellite-change-bar-label">Water/Soil Signal</span>
-              <span class="satellite-change-bar-value">${s.waterSoilPct || 0}%</span>
-            </div>
-            <div class="satellite-change-bar-track"><div class="satellite-change-bar-fill"></div></div>
-          </div>
-        `;
-      setTimeout(() => {
-        bars.querySelectorAll('.satellite-change-bar').forEach((bar, i) => {
-          setTimeout(() => bar.classList.add('revealed'), i * 150);
-        });
-      }, 200);
-    }
+   const bars = document.getElementById('satelliteChangeBars');
 
+if (bars) {
+    bars.innerHTML = '';
+    bars.style.display = 'none';
+}
     // Anomaly alert
     const alertEl = document.getElementById('satelliteAlert');
     if (alertEl) {

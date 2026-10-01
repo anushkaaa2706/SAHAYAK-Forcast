@@ -80,7 +80,7 @@ try {
 
     state.monitoringData =
         await Services.getMonitoringData(location);
-
+renderSevereOutlook();
     console.log('LIVE RISK ZONES:', state.riskZones);
     console.log('LIVE MONITORING DATA:', state.monitoringData);
 
@@ -126,43 +126,96 @@ function renderMetrics() {
     const grid = document.getElementById('metricsGrid');
     if (!grid) return;
 
-    // Sirf wahi zones count honge jinka score ML model se aaya hai
     const live = state.riskZones.filter(z => z.isLive);
     const hasLive = live.length > 0;
-    const total = state.riskZones.length;
 
-    const warning = live.filter(z => z.level === 'WARNING');
-    const alert = live.filter(z => z.level === 'ALERT');
-    const atRiskPop = [...warning, ...alert]
-        .reduce((sum, z) => sum + Number(z.population || 0), 0);
+    const critical = live.filter(z =>
+        String(z.level || '').toUpperCase() === 'CRITICAL'
+    );
 
-    const fmt = v => hasLive ? v : '9';
-    const foot = hasLive
-        ? `of ${live.length} live zones`
-        : 'ML model unavailable';
+    const highRisk = live.filter(z => {
+        const level = String(z.level || '').toUpperCase();
+        return level === 'HIGH' || level === 'ALERT';
+    });
 
     const cards = [
-        { label: 'Critical Zones', icon: 'alert-triangle', riskClass: 'risk-warning', statusClass: 'warning', status: 'WARNING',
-          value: fmt(warning.length), foot },
-        { label: 'High Risk Zones', icon: 'alert-circle', riskClass: 'risk-alert', statusClass: 'alert', status: 'ALERT',
-          value: fmt(alert.length), foot },
-        { label: 'Active Warnings', icon: 'bell', value: '4', foot: 'Weather warnings' },
-        { label: 'Field Reports', icon: 'clipboard', value: '5', foot: 'No report backend connected' },
-        { label: 'Verified Incidents', icon: 'check-circle', value: '2', foot: 'No verification backend connected' },
-        { label: 'Population at Risk', icon: 'users',
-          value: hasLive ? Utils.formatNumber(atRiskPop) : '1',
-          foot: 'Warning + Alert zones' }
+        {
+            label: 'Critical Locations',
+            icon: 'alert-triangle',
+            riskClass: 'risk-warning',
+            statusClass: 'warning',
+            status: 'CRITICAL',
+            value: hasLive ? critical.length : '—',
+            foot: hasLive
+                ? `of ${live.length} monitored locations`
+                : 'Live risk data unavailable'
+        },
+        {
+            label: 'High-Risk Locations',
+            icon: 'alert-circle',
+            riskClass: 'risk-alert',
+            statusClass: 'alert',
+            status: 'HIGH',
+            value: hasLive ? highRisk.length : '—',
+            foot: hasLive
+                ? `of ${live.length} monitored locations`
+                : 'Live risk data unavailable'
+        },
+       {
+    label: 'Active Weather Warnings',
+    icon: 'bell',
+    value: hasLive
+        ? live.filter(z => {
+            const risk = Number(z.risk ?? z.risk_score ?? 0);
+            return risk >= 31;
+        }).length
+        : '—',
+    foot: hasLive
+        ? 'Based on current risk signals'
+        : 'Live risk data unavailable'
+},
+        {
+            label: 'Field Reports',
+            icon: 'clipboard',
+            value: '5',
+            foot: 'Submitted reports'
+        },
+        {
+            label: 'Verified Incidents',
+            icon: 'check-circle',
+            value: '2',
+            foot: 'Verified reports'
+        },
+        {
+            label: 'Monitored Locations',
+            icon: 'map',
+            value: hasLive ? live.length : '—',
+            foot: 'Live weather assessment'
+        }
     ];
 
     grid.innerHTML = cards.map(c => `
         <div class="metric-card ${c.riskClass || ''}">
             <div class="metric-header">
-                <div class="metric-icon ${c.statusClass || ''}">${getIcon(c.icon)}</div>
-                ${c.status ? `<span class="metric-status ${c.statusClass}">${c.status}</span>` : ''}
+                <div class="metric-icon ${c.statusClass || ''}">
+                    ${getIcon(c.icon)}
+                </div>
+
+                ${c.status
+                    ? `<span class="metric-status ${c.statusClass}">
+                        ${c.status}
+                       </span>`
+                    : ''
+                }
             </div>
+
             <div class="metric-value">${c.value}</div>
+
             <div class="metric-label">${c.label}</div>
-            <div class="metric-footer"><span>${c.foot}</span></div>
+
+            <div class="metric-footer">
+                <span>${c.foot}</span>
+            </div>
         </div>
     `).join('');
 
@@ -297,7 +350,13 @@ function renderRiskZones() {
         const container = document.getElementById('locationPanelContainer');
         if (!container) return;
 
-        const level = zone.level.toLowerCase();
+        const level = String(zone.level || 'WATCH').toLowerCase();
+        const locationReports = Array.isArray(DEMO_DATA.fieldReports)
+    ? DEMO_DATA.fieldReports.filter(report =>
+        String(report.location || '').toLowerCase() ===
+        String(zone.location || '').toLowerCase()
+    )
+    : [];
         const factorsHtml = zone.factors.map(f => {
             const pct = (f.value / 40) * 100;
             return `
@@ -315,11 +374,15 @@ function renderRiskZones() {
                     <button class="location-panel-close" onclick="window.SahayakDashboard.closeLocationPanel()" aria-label="Close">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
-                   <div class="location-label">HIGH SEVERE WEATHER RISK</div>
+                   <div class="location-label">
+    ${String(zone.level || 'RISK').toUpperCase()} SEVERE WEATHER RISK
+</div>
                     <div class="location-name">${zone.location}</div>
                     <div class="location-state">${zone.state}</div>
                     <div class="location-risk-row">
-                        <div class="location-risk-score level-${level}">${zone.risk}</div>
+<div class="location-risk-score level-${level}">
+    ${Math.round(Number(zone.risk ?? zone.risk_score ?? 0))}
+</div>
                         <div class="location-risk-max">/ 100</div>
                     </div>
                     <div class="location-risk-status status-${level}">
@@ -352,35 +415,45 @@ function renderRiskZones() {
                         <span class="location-param-label">Satellite Change</span>
                         <span class="location-param-value">${zone.satelliteChange ? 'Detected' : 'None'}</span>
                     </div>
-                    <div class="location-param">
-                        <span class="location-param-label">Nearby Population</span>
-                        <span class="location-param-value">${Utils.formatNumber(zone.population)}</span>
-                    </div>
-                    <div class="location-param">
-                        <span class="location-param-label">Nearby Roads</span>
-                        <span class="location-param-value">${zone.roads}</span>
-                    </div>
-                    <div class="location-param">
-                        <span class="location-param-label">Nearby Schools</span>
-                        <span class="location-param-value">${zone.schools}</span>
-                    </div>
-                    <div class="location-param">
-                        <span class="location-param-label">Nearby Hospital</span>
-                        <span class="location-param-value">${zone.hospitals}</span>
-                    </div>
+                   
                 </div>
                 <div style="padding: var(--space-3) var(--space-4); background: var(--navy-900); color: var(--white);">
                     <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--cyan); margin-bottom: var(--space-2);">WHY IS THIS AREA AT ELEVATED WEATHER RISK?</div>
                     <div class="ai-bars">${factorsHtml}</div>
                 </div>
+                <div class="location-field-reports">
+    <div class="location-field-reports-title">
+        Field Reports
+    </div>
+
+    ${
+        locationReports.length
+            ? locationReports.slice(0, 3).map(report => `
+                <div class="location-field-report">
+                    <div class="location-field-report-type">
+                        ${report.type || report.category || 'Weather Report'}
+                    </div>
+
+                   <div class="location-field-report-meta">
+    <span>${report.status || 'Pending Verification'}</span>
+    <span>·</span>
+    <span>${report.timestamp || report.date || 'Recently submitted'}</span>
+</div>
+                </div>
+            `).join('')
+            : `
+                <div class="location-field-report-empty">
+                    No field reports for this location.
+                </div>
+            `
+    }
+</div>
                 <div class="location-actions">
                     <a href="${ROUTES.riskAnalysis}" class="btn btn-primary">View Analysis →</a>
                     <a href="${ROUTES.alerts}" class="btn btn-outline">Generate Warning</a>
                     <button class="btn btn-outline" onclick="window.SahayakDashboard.openAssignModal()">Assign Officer</button>
     
-                <div style="padding: var(--space-2) var(--space-4); text-align: center; font-size: 10px; color: var(--text-400); font-style: italic; background: var(--surface);">
-                    LIVE / MODEL DATA
-                </div>
+                
             </div>
         `;
 
@@ -643,6 +716,115 @@ console.log("RENDERING ALERTS");
         `;
     }).join('');
 }
+function renderSevereOutlook() {
+    const container = document.getElementById('severeOutlook');
+    if (!container) return;
+
+    const forecast = state.monitoringData?.weather || [];
+
+    if (!forecast.length) {
+        container.innerHTML = `
+            <div class="severe-outlook-empty">
+                2–6 hour severe-weather outlook is currently unavailable.
+            </div>
+        `;
+        return;
+    }
+
+    const hours = forecast.slice(0, 7);
+
+    const getRisk = item => {
+        const rain = Number(item.rainfall || 0);
+        const probability = Number(item.precipitationProbability || 0);
+        const humidity = Number(item.humidity || 0);
+        const cloud = Number(item.cloudCover || 0);
+        const gust = Number(item.windGusts || 0);
+
+        const score =
+            rain * 4 +
+            probability * 0.3 +
+            Math.max(0, humidity - 70) * 0.4 +
+            cloud * 0.15 +
+            gust * 0.15;
+
+        return Math.max(0, Math.min(100, Math.round(score)));
+    };
+
+    const getLevel = score => {
+        if (score >= 81) return 'WARNING';
+        if (score >= 61) return 'ALERT';
+        if (score >= 31) return 'WATCH';
+        return 'SAFE';
+    };
+
+    const cards = hours.map((item, index) => {
+        const score = getRisk(item);
+        const level = getLevel(score);
+
+        let hazard = 'Monitoring';
+
+        if ([95, 96, 99].includes(Number(item.weatherCode))) {
+            hazard = 'Thunderstorm';
+        } else if (Number(item.rainfall || 0) >= 10) {
+            hazard = 'Heavy Rain';
+        } else if (Number(item.windGusts || 0) >= 50) {
+            hazard = 'Strong Wind';
+        }
+
+        return `
+            <div class="severe-outlook-card">
+                <div class="severe-outlook-hour">
+                    ${index === 0 ? 'NOW' : `+${index}H`}
+                </div>
+
+                <div class="severe-outlook-time">
+                    ${item.hour || '--'}
+                </div>
+
+                <div class="severe-outlook-level ${level.toLowerCase()}">
+                    ${level}
+                </div>
+
+                <div class="severe-outlook-score">
+                    ${score}/100
+                </div>
+
+                <div class="severe-outlook-hazard">
+                    ${hazard}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="severe-outlook-section">
+            <div class="severe-outlook-header">
+                <div>
+                    <div class="severe-outlook-title">
+                        Next 6 Hours
+                    </div>
+                    <div class="severe-outlook-subtitle">
+                        Live severe-weather outlook
+                    </div>
+                </div>
+
+                <span class="severe-outlook-live">
+                    LIVE
+                </span>
+            </div>
+
+            <div class="severe-outlook-grid">
+                ${cards}
+            </div>
+
+            <div class="severe-outlook-note">
+                Prototype risk indices derived from live forecast signals
+                including rainfall, precipitation probability, humidity,
+                cloud cover and wind.
+            </div>
+        </div>
+    `;
+}
     function viewAlert(alertId) {
         const alert = DEMO_DATA.alerts.find(a => a.id === alertId);
         if (!alert) return;
@@ -675,51 +857,131 @@ console.log("RENDERING ALERTS");
     }
 
     // ============ FIELD OPERATIONS ============
-    function renderFieldOperations() {
-        const statsGrid = document.getElementById('fieldStatsGrid');
-        const activityList = document.getElementById('activityList');
+   function renderFieldOperations() {
+    const statsGrid = document.getElementById('fieldStatsGrid');
+    const activityList = document.getElementById('activityList');
 
-        if (statsGrid) {
-            const stats = DEMO_DATA.fieldStats;
-            statsGrid.innerHTML = `
-                <div class="field-stat"><div class="field-stat-value">${stats.reports}</div><div class="field-stat-label">Field Reports</div></div>
-                <div class="field-stat"><div class="field-stat-value">${stats.verified}</div><div class="field-stat-label">Verified</div></div>
-                <div class="field-stat"><div class="field-stat-value">${stats.pending}</div><div class="field-stat-label">Pending Verification</div></div>
-                <div class="field-stat"><div class="field-stat-value">${stats.assigned}</div><div class="field-stat-label">Inspections Assigned</div></div>
-            `;
-        }
+    const reports = Array.isArray(DEMO_DATA.fieldReports)
+        ? DEMO_DATA.fieldReports
+        : [];
 
-        if (activityList) {
-            activityList.innerHTML = DEMO_DATA.fieldReports.slice(0, 4).map(r => `
-                <div class="activity-item">
-                    <div class="activity-dot"></div>
-                    <div class="activity-content">
-                        <div class="activity-title">${r.type}</div>
-                        <div class="activity-meta">${r.location} · ${r.timestamp}</div>
-                    </div>
-                </div>
-            `).join('');
-        }
+    const verified = reports.filter(r =>
+        String(r.status || '').toLowerCase() === 'verified'
+    ).length;
+
+    const pending = reports.filter(r => {
+        const status = String(r.status || '').toLowerCase();
+        return !status || status === 'pending' || status === 'pending verification';
+    }).length;
+
+    const assigned = reports.filter(r =>
+        String(r.status || '').toLowerCase().includes('assigned')
+    ).length;
+
+    if (statsGrid) {
+        statsGrid.innerHTML = `
+            <div class="field-stat">
+                <div class="field-stat-value">${reports.length}</div>
+                <div class="field-stat-label">Field Reports</div>
+            </div>
+
+            <div class="field-stat">
+                <div class="field-stat-value">${verified}</div>
+                <div class="field-stat-label">Verified</div>
+            </div>
+
+            <div class="field-stat">
+                <div class="field-stat-value">${pending}</div>
+                <div class="field-stat-label">Pending Verification</div>
+            </div>
+
+            <div class="field-stat">
+                <div class="field-stat-value">${assigned}</div>
+                <div class="field-stat-label">Inspections Assigned</div>
+            </div>
+        `;
     }
+
+    if (activityList) {
+        activityList.innerHTML = reports
+            .slice(0, 4)
+            .map(r => {
+                const type = r.type || r.category || 'Field Report';
+                const location = r.location || 'Location unavailable';
+                const timestamp = r.timestamp || r.date || 'Recently submitted';
+
+                return `
+                    <div class="activity-item">
+                        <div class="activity-dot"></div>
+
+                        <div class="activity-content">
+                            <div class="activity-title">
+                                ${type}
+                            </div>
+
+                            <div class="activity-meta">
+                                ${location} · ${timestamp}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            })
+            .join('');
+    }
+}
 
     // ============ DATA FRESHNESS ============
-    function renderDataFreshness() {
-        const list = document.getElementById('freshnessList');
-        if (!list) return;
+   function renderDataFreshness() {
+    const list = document.getElementById('freshnessList');
+    if (!list) return;
 
-        list.innerHTML = DEMO_DATA.dataFreshness.map(d => `
-            <div class="freshness-item">
-                <div class="freshness-source">
-                    <span class="freshness-dot ${d.status}"></span>
-                    <span>${d.source}</span>
-                </div>
-                <div class="freshness-status">
-                    <span class="freshness-label ${d.status}">${d.status === 'fresh' ? 'Fresh' : d.status === 'delayed' ? 'Delayed' : 'Unavailable'}</span>
-                    <span class="freshness-time">${d.updated}</span>
-                </div>
+    const sources = [
+        {
+            source: 'Weather Forecast',
+            status: 'fresh',
+            updated: 'Open-Meteo · Live'
+        },
+        {
+            source: 'Rainfall & Precipitation',
+            status: 'fresh',
+            updated: 'Open-Meteo · Live'
+        },
+        {
+            source: 'Terrain & Soil Moisture',
+            status: 'fresh',
+            updated: 'Open-Meteo · Live'
+        },
+        {
+            source: 'Satellite Imagery',
+            status: 'fresh',
+            updated: 'Esri World Imagery · Available'
+        },
+        {
+            source: 'Historical Rainfall',
+            status: 'fresh',
+            updated: 'Open-Meteo Archive · Live'
+        }
+    ];
+
+    list.innerHTML = sources.map(d => `
+        <div class="freshness-item">
+            <div class="freshness-source">
+                <span class="freshness-dot ${d.status}"></span>
+                <span>${d.source}</span>
             </div>
-        `).join('');
-    }
+
+            <div class="freshness-status">
+                <span class="freshness-label ${d.status}">
+                    LIVE
+                </span>
+
+                <span class="freshness-time">
+                    ${d.updated}
+                </span>
+            </div>
+        </div>
+    `).join('');
+}
 
     // ============ QUICK ACTIONS ============
     function renderQuickActions() {

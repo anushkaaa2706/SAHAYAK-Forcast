@@ -261,7 +261,11 @@
             </div>
             <div class="alert-meta-row">
               <span class="alert-meta-label">Expires</span>
-              <span class="alert-meta-value">${a.expires}</span>
+             <span class="alert-meta-value">
+    ${a.expiresAt
+        ? new Date(a.expiresAt).toLocaleString()
+        : (a.expires || 'Not specified')}
+</span>
             </div>
             ${a.assignedOfficer ? `
               <div class="alert-meta-row">
@@ -348,9 +352,18 @@
                 <div class="detail-info-value">${alert.issued}</div>
               </div>
               <div class="detail-info-item">
-                <div class="detail-info-label">Expires</div>
-                <div class="detail-info-value">${alert.expires}</div>
-              </div>
+    <div class="detail-info-label">Expires</div>
+    <div class="detail-info-value">
+        ${
+            alert.expiresAt
+                ? new Date(alert.expiresAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })
+                : (alert.expires || 'N/A')
+        }
+    </div>
+</div>
               <div class="detail-info-item">
                 <div class="detail-info-label">Status</div>
                 <div class="detail-info-value">${alert.status.toUpperCase()}</div>

@@ -2048,3 +2048,199 @@
         transition-duration: 0.01ms !important;
     }
 }
+/* Next 6 Hours Severe Weather Outlook */
+
+.severe-outlook-section {
+    margin-top: 20px;
+    padding: 20px;
+    border: 1px solid var(--border-color, #2a2f38);
+    border-radius: 12px;
+    background: var(--card-bg, #151a21);
+}
+
+.severe-outlook-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.severe-outlook-title {
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.severe-outlook-subtitle {
+    margin-top: 4px;
+    font-size: 12px;
+    opacity: 0.65;
+}
+
+.severe-outlook-live {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 5px 9px;
+    border-radius: 6px;
+    background: rgba(74, 222, 128, 0.12);
+    color: #4ade80;
+}
+
+.severe-outlook-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(110px, 1fr));
+    gap: 10px;
+    overflow-x: auto;
+}
+
+.severe-outlook-card {
+    min-width: 110px;
+    padding: 14px 10px;
+    text-align: center;
+    border: 1px solid var(--border-color, #2a2f38);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.severe-outlook-hour {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.severe-outlook-time {
+    font-size: 12px;
+    opacity: 0.65;
+    margin-bottom: 10px;
+}
+
+.severe-outlook-level {
+    display: inline-block;
+    padding: 4px 7px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.severe-outlook-level.safe {
+    background: rgba(74, 222, 128, 0.12);
+    color: #4ade80;
+}
+
+.severe-outlook-level.watch {
+    background: rgba(250, 204, 21, 0.12);
+    color: #facc15;
+}
+
+.severe-outlook-level.alert {
+    background: rgba(251, 146, 60, 0.12);
+    color: #fb923c;
+}
+
+.severe-outlook-level.warning {
+    background: rgba(248, 113, 113, 0.12);
+    color: #f87171;
+}
+
+.severe-outlook-score {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 7px;
+}
+
+.severe-outlook-hazard {
+    font-size: 11px;
+    opacity: 0.75;
+}
+
+.severe-outlook-note {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color, #2a2f38);
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: 0.6;
+}
+
+.severe-outlook-empty {
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid var(--border-color, #2a2f38);
+    border-radius: 10px;
+    font-size: 13px;
+    opacity: 0.7;
+}
+
+@media (max-width: 900px) {
+    .severe-outlook-grid {
+        grid-template-columns: repeat(4, minmax(110px, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .severe-outlook-grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
+}.severe-outlook-section {
+    opacity: 1 !important;
+    visibility: visible !important;
+    background: #151a21 !important;
+    color: #ffffff !important;
+}
+
+.severe-outlook-card {
+    opacity: 1 !important;
+    visibility: visible !important;
+    background: #1a1f27 !important;
+    color: #ffffff !important;
+}
+
+.severe-outlook-title,
+.severe-outlook-subtitle,
+.severe-outlook-hour,
+.severe-outlook-time,
+.severe-outlook-score,
+.severe-outlook-hazard {
+    opacity: 1 !important;
+}
+
+.severe-outlook-level {
+    opacity: 1 !important;
+}
+.location-field-reports {
+    padding: 16px;
+    border-top: 1px solid var(--border-color, #2a2f38);
+}
+
+.location-field-reports-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.location-field-report {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color, #2a2f38);
+}
+
+.location-field-report:last-child {
+    border-bottom: none;
+}
+
+.location-field-report-type {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.location-field-report-meta {
+    display: flex;
+    gap: 5px;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: 0.65;
+}
+
+.location-field-report-empty {
+    font-size: 12px;
+    opacity: 0.6;
+}

@@ -905,11 +905,22 @@ async getAllRiskZones() {
     let alerts = [];
 
     if (typeof SahayakState !== 'undefined') {
-      alerts = SahayakState.getAlerts() || [];
-    } else {
-      alerts = DEMO_DATA.alerts || [];
-    }
+  alerts = SahayakState.getAlerts() || [];
+} else {
+  alerts = [];
+}
+const now = Date.now();
 
+alerts = alerts.filter(alert => {
+  if (!alert.expiresAt) return true;
+
+  if (now >= alert.expiresAt) {
+    alert.status = 'expired';
+    return false;
+  }
+
+  return true;
+});
     if (filters.status && filters.status !== 'all') {
       alerts = alerts.filter(a => a.status === filters.status);
     }
