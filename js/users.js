@@ -617,7 +617,7 @@ const user = allUsers.find(u => u.id === userId);
   
     // ============ VIEW ACTIVITY ============
     function viewActivity(userId) {
-      showToast('info', '📋', 'Activity log opened — DEMO');
+      showToast('info', '📋', 'Activity log opened');
     }
   
     // ============ TOAST ============
@@ -628,12 +628,11 @@ const user = allUsers.find(u => u.id === userId);
       const toast = document.createElement('div');
       toast.className = `users-toast ${type}`;
       toast.innerHTML = `
-        <div class="users-toast-icon">${icon}</div>
-        <div>
-          <div class="users-toast-text">${message}</div>
-          <div class="users-toast-demo">DEMO</div>
-        </div>
-      `;
+  <div class="users-toast-icon">${icon}</div>
+  <div>
+    <div class="users-toast-text">${message}</div>
+  </div>
+`;
       document.body.appendChild(toast);
   
       setTimeout(() => {

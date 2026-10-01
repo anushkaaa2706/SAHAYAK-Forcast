@@ -15,13 +15,54 @@
     };
 
     const SLIDER_CONFIG = {
-        rainfall: { min: 100, max: 300, unit: ' mm', icon: 'cloud-rain', label: 'Rainfall' },
-        soilMoisture: { min: 20, max: 100, unit: '%', icon: 'droplet', label: 'Soil Moisture' },
-        slope: { min: 10, max: 60, unit: '°', icon: 'mountain', label: 'Slope' },
-        historicalWeight: { min: 0, max: 100, unit: '', icon: 'clock', label: 'Historical Event Weight' },
-        satelliteWeight: { min: 0, max: 100, unit: '', icon: 'satellite', label: 'Satellite Anomaly' }
-    };
+    rainfall: {
+        min: 0,
+        max: 100,
+        unit: ' mm/h',
+        icon: 'cloud-rain',
+        label: 'Rainfall'
+    },
 
+    rainProbability: {
+        min: 0,
+        max: 100,
+        unit: '%',
+        icon: 'cloud',
+        label: 'Rain Probability'
+    },
+
+    soilMoisture: {
+        min: 0,
+        max: 100,
+        unit: '%',
+        icon: 'droplet',
+        label: 'Soil Moisture'
+    },
+
+    slope: {
+        min: 0,
+        max: 60,
+        unit: '°',
+        icon: 'mountain',
+        label: 'Slope'
+    },
+
+    windSpeed: {
+        min: 0,
+        max: 100,
+        unit: ' km/h',
+        icon: 'wind',
+        label: 'Wind Speed'
+    },
+
+    windGusts: {
+        min: 0,
+        max: 150,
+        unit: ' km/h',
+        icon: 'wind',
+        label: 'Wind Gusts'
+    }
+};
     // ============ INIT ============
     async function init() {
         setPageUser();
@@ -63,30 +104,78 @@
     }
 
     // ============ LOAD LOCATION ============
-    async function loadLocation(locationName) {
-        const zone = DEMO_DATA.riskZones.find(z => z.location === locationName);
-        if (!zone) return;
+   async function loadLocation(locationName) {
+    const zone = DEMO_DATA.riskZones.find(z => z.location === locationName);
+    if (!zone) return;
 
-        state.zone = zone;
-        state.currentLocation = locationName;
-        state.baseline = zone.simulatorBaseline || {
-            rainfall: zone.rainfall || 100,
-            soilMoisture: zone.soilMoisture || 50,
-            slope: zone.slope || 25,
-            historicalWeight: 50,
-            satelliteWeight: 20
-        };
+    state.zone = zone;
+    state.currentLocation = locationName;
 
-        state.currentParams = { ...state.baseline };
+    const oldBaseline = zone.simulatorBaseline || {};
 
-        // Update UI
-        updateLocationInfo();
-        renderSliders();
-        updateCurrentRisk();
-        updateLivePreview();
-        initMiniMap();
-        hideResultSection();
+    // Get current live weather from Open-Meteo
+    let liveWeather = [];
+
+    try {
+        liveWeather = await Services.getSevereWeatherForecast(locationName);
+    } catch (error) {
+        console.warn('Unable to load live weather for simulator:', error);
     }
+
+    const weather = liveWeather?.[0] || {};
+
+    // Open-Meteo soil moisture is normally 0–1.
+    // Convert it to percentage for the simulator.
+    let liveSoilMoisture = Number(weather.soilMoisture);
+
+    if (Number.isFinite(liveSoilMoisture) && liveSoilMoisture <= 1) {
+        liveSoilMoisture = liveSoilMoisture * 100;
+    }
+
+    state.baseline = {
+        rainfall: Number.isFinite(Number(weather.rainfall))
+            ? Number(weather.rainfall)
+            : Number(zone.rainfall) || Number(oldBaseline.rainfall) || 0,
+
+        rainProbability: Number.isFinite(Number(weather.precipitationProbability))
+            ? Number(weather.precipitationProbability)
+            : Number(zone.rainProbability) || Number(oldBaseline.rainProbability) || 0,
+
+        soilMoisture: Number.isFinite(liveSoilMoisture)
+            ? liveSoilMoisture
+            : Number(zone.soilMoisture) || Number(oldBaseline.soilMoisture) || 0,
+
+        slope: Number.isFinite(Number(zone.slope))
+            ? Number(zone.slope)
+            : Number(oldBaseline.slope) || 0,
+
+        windSpeed: Number.isFinite(Number(weather.windSpeed))
+            ? Number(weather.windSpeed)
+            : Number(zone.windSpeed) || Number(oldBaseline.windSpeed) || 0,
+
+        windGusts: Number.isFinite(Number(weather.windGusts))
+            ? Number(weather.windGusts)
+            : Number(zone.windGusts) || Number(oldBaseline.windGusts) || 0
+    };
+
+    state.currentParams = { ...state.baseline };
+
+    updateLocationInfo();
+
+    renderSliders();
+
+    // IMPORTANT:
+    // Calculate current risk from the live baseline,
+    // instead of using DEMO_DATA's zone.risk.
+    updateCurrentRisk();
+
+    updateLivePreview();
+    updatePresetScenarioCards();
+
+    initMiniMap();
+
+    hideResultSection();
+}
 
     function updateLocationInfo() {
         const stateEl = document.getElementById('locationState');
@@ -144,89 +233,177 @@
 
         // Live preview update
         updateLivePreview();
+updatePresetScenarioCards();
     }
 
     // ============ CURRENT RISK ============
-    function updateCurrentRisk() {
-        const scoreEl = document.getElementById('currentRiskScore');
-        const levelEl = document.getElementById('currentRiskLevel');
-        if (!scoreEl || !levelEl) return;
+function updateCurrentRisk() {
+    const scoreEl = document.getElementById('currentRiskScore');
+    const levelEl = document.getElementById('currentRiskLevel');
 
-        const level = state.zone.level.toLowerCase();
-        scoreEl.textContent = state.zone.risk;
-        levelEl.textContent = state.zone.level;
-        levelEl.className = `risk-compare-level ${level}`;
+    if (!scoreEl || !levelEl || !state.baseline) return;
+
+    const rainfall = Number(state.baseline.rainfall) || 0;
+    const rainProbability = Number(state.baseline.rainProbability) || 0;
+    const soilMoisture = Number(state.baseline.soilMoisture) || 0;
+    const slope = Number(state.baseline.slope) || 0;
+    const windSpeed = Number(state.baseline.windSpeed) || 0;
+    const windGusts = Number(state.baseline.windGusts) || 0;
+
+    let risk = 0;
+
+    risk += Math.min(30, rainfall * 3);
+    risk += rainProbability * 0.20;
+    risk += Math.min(10, Math.max(0, soilMoisture - 70) * 0.33);
+    risk += Math.min(10, Math.max(0, slope - 30) * 0.33);
+    risk += Math.min(10, windSpeed * 0.25);
+    risk += Math.min(10, windGusts * 0.15);
+
+    risk = Math.round(Math.max(0, Math.min(100, risk)));
+
+    let level;
+
+    if (risk >= 81) {
+        level = 'WARNING';
+    } else if (risk >= 61) {
+        level = 'ALERT';
+    } else if (risk >= 31) {
+        level = 'WATCH';
+    } else {
+        level = 'SAFE';
     }
 
+    scoreEl.textContent = risk;
+    levelEl.textContent = level;
+    levelEl.className =
+        `risk-compare-level ${level.toLowerCase()}`;
+        const presetScore = document.getElementById('presetCurrentScore');
+const presetLevel = document.getElementById('presetCurrentLevel');
+
+if (presetScore) {
+    presetScore.textContent = `${risk}/100`;
+}
+
+if (presetLevel) {
+    presetLevel.textContent = level;
+    presetLevel.className =
+        `scenario-preset-level ${level.toLowerCase()}`;
+}
+}
     // ============ LIVE PREVIEW ============
-    function updateLivePreview() {
-        const result = calculateSimulation(state.currentParams);
-        state.simulatedResult = result;
+  function updateLivePreview() {
+    const result = calculateSimulation(state.currentParams);
 
-        const scoreEl = document.getElementById('livePreviewValue');
-        const levelEl = document.getElementById('livePreviewLevel');
-        const deltaEl = document.getElementById('riskTransitionDelta');
+    const currentRisk =
+        Number(document.getElementById('currentRiskScore')?.textContent) || 0;
 
-        if (scoreEl) {
-            scoreEl.textContent = result.simulatedRisk;
-            scoreEl.className = `live-preview-value level-${result.simulatedLevel.toLowerCase()}`;
-        }
+    const currentLevel =
+        document.getElementById('currentRiskLevel')?.textContent || 'SAFE';
 
-        if (levelEl) {
-            levelEl.textContent = result.simulatedLevel;
-            levelEl.className = `live-preview-level ${result.simulatedLevel.toLowerCase()}`;
-        }
+    const isCurrentConditions =
+        JSON.stringify(state.currentParams) ===
+        JSON.stringify(state.baseline);
 
-        // Update simulated card
-        const simCard = document.querySelector('.risk-compare-card.simulated');
-        if (simCard) {
-            simCard.className = `risk-compare-card simulated level-${result.simulatedLevel.toLowerCase()}`;
-            if (result.simulatedLevel === 'WARNING' || result.simulatedLevel === 'CRITICAL') {
-                simCard.classList.add('pulse-warning');
-            } else {
-                simCard.classList.remove('pulse-warning');
-            }
-        }
-
-        const simScoreEl = document.getElementById('simulatedRiskScore');
-        const simLevelEl = document.getElementById('simulatedRiskLevel');
-        if (simScoreEl) {
-            simScoreEl.textContent = result.simulatedRisk;
-            simScoreEl.className = `risk-compare-score level-${result.simulatedLevel.toLowerCase()}`;
-        }
-        if (simLevelEl) {
-            simLevelEl.textContent = result.simulatedLevel;
-            simLevelEl.className = `risk-compare-level ${result.simulatedLevel.toLowerCase()}`;
-        }
-
-        // Delta
-        if (deltaEl) {
-            const sign = result.delta > 0 ? '+' : result.delta < 0 ? '' : '';
-            deltaEl.textContent = `${sign}${result.delta} points`;
-            deltaEl.className = 'risk-transition-delta ' + 
-                (result.delta > 0 ? 'positive' : result.delta < 0 ? 'negative' : 'neutral');
-        }
-
-        // Contributions in live preview
-        updateLiveContributions(result.contributions);
-
-        // Update mini map zone color
-        updateMiniMapZone(result.simulatedRisk, result.simulatedLevel);
+    if (isCurrentConditions) {
+        result.simulatedRisk = currentRisk;
+        result.simulatedLevel = currentLevel;
+        result.delta = 0;
     }
 
+    state.simulatedResult = result;
+
+    const scoreEl = document.getElementById('livePreviewValue');
+    const levelEl = document.getElementById('livePreviewLevel');
+    const deltaEl = document.getElementById('riskTransitionDelta');
+
+    if (scoreEl) {
+        scoreEl.textContent = result.simulatedRisk;
+        scoreEl.className =
+            `live-preview-value level-${result.simulatedLevel.toLowerCase()}`;
+    }
+
+    if (levelEl) {
+        levelEl.textContent = result.simulatedLevel;
+        levelEl.className =
+            `live-preview-level ${result.simulatedLevel.toLowerCase()}`;
+    }
+
+    // Update simulated card
+    const simCard =
+        document.querySelector('.risk-compare-card.simulated');
+
+    if (simCard) {
+        simCard.className =
+            `risk-compare-card simulated level-${result.simulatedLevel.toLowerCase()}`;
+
+        if (
+            result.simulatedLevel === 'WARNING' ||
+            result.simulatedLevel === 'CRITICAL'
+        ) {
+            simCard.classList.add('pulse-warning');
+        } else {
+            simCard.classList.remove('pulse-warning');
+        }
+    }
+
+    const simScoreEl =
+        document.getElementById('simulatedRiskScore');
+
+    const simLevelEl =
+        document.getElementById('simulatedRiskLevel');
+
+    if (simScoreEl) {
+        simScoreEl.textContent = result.simulatedRisk;
+        simScoreEl.className =
+            `risk-compare-score level-${result.simulatedLevel.toLowerCase()}`;
+    }
+
+    if (simLevelEl) {
+        simLevelEl.textContent = result.simulatedLevel;
+        simLevelEl.className =
+            `risk-compare-level ${result.simulatedLevel.toLowerCase()}`;
+    }
+
+    // Delta relative to real current risk
+    if (deltaEl) {
+        const delta = result.simulatedRisk - currentRisk;
+        const sign = delta > 0 ? '+' : '';
+
+        deltaEl.textContent = `${sign}${delta} points`;
+
+        deltaEl.className =
+            'risk-transition-delta ' +
+            (
+                delta > 0
+                    ? 'positive'
+                    : delta < 0
+                        ? 'negative'
+                        : 'neutral'
+            );
+    }
+
+    // Contributions in live preview
+    updateLiveContributions(result.contributions);
+
+    // Update mini map zone color
+    updateMiniMapZone(
+        result.simulatedRisk,
+        result.simulatedLevel
+    );
+}
     function updateLiveContributions(contributions) {
         const container = document.getElementById('liveContributions');
         if (!container) return;
 
         const maxVal = 30;
         const labels = {
-            rainfall: 'Rainfall',
-            soil: 'Soil Moisture',
-            slope: 'Slope',
-            historical: 'Historical',
-            satellite: 'Satellite'
-        };
-
+    rainfall: 'Rainfall',
+    rainProbability: 'Rain Probability',
+    soil: 'Soil Moisture',
+    slope: 'Slope',
+    windSpeed: 'Wind Speed',
+    windGusts: 'Wind Gusts'
+};
         container.innerHTML = Object.entries(contributions).map(([key, val]) => {
             const pct = Math.min(100, Math.abs(val) / maxVal * 100);
             return `
@@ -243,76 +420,146 @@
 
     // ============ CALCULATE SIMULATION ============
     function calculateSimulation(params) {
-        const baseline = state.baseline;
-        const baselineRisk = state.zone.risk;
+    const baseline = state.baseline || {};
+    const baselineRisk = Number.isFinite(Number(state.zone?.risk))
+        ? Number(state.zone.risk)
+        : 0;
 
-        // Transparent demo formula
-        const rainfallDelta = ((params.rainfall - baseline.rainfall) / 200) * 25;
-        const soilDelta = ((params.soilMoisture - baseline.soilMoisture) / 80) * 20;
-        const slopeDelta = ((params.slope - baseline.slope) / 50) * 20;
-        const historicalDelta = ((params.historicalWeight - baseline.historicalWeight) / 100) * 15;
-        const satelliteDelta = ((params.satelliteWeight - baseline.satelliteWeight) / 80) * 10;
+    const safe = (value, fallback = 0) => {
+        const number = Number(value);
+        return Number.isFinite(number) ? number : fallback;
+    };
 
-        const totalDelta = rainfallDelta + soilDelta + slopeDelta + historicalDelta + satelliteDelta;
-        const simulatedRisk = Math.max(0, Math.min(100, Math.round(baselineRisk + totalDelta)));
+    const rainfall = safe(params.rainfall, baseline.rainfall);
+    const rainProbability = safe(
+        params.rainProbability,
+        baseline.rainProbability
+    );
+    const soilMoisture = safe(
+        params.soilMoisture,
+        baseline.soilMoisture
+    );
+    const slope = safe(params.slope, baseline.slope);
+    const windSpeed = safe(params.windSpeed, baseline.windSpeed);
+    const windGusts = safe(params.windGusts, baseline.windGusts);
 
-        const contributions = {
-            rainfall: Math.round(rainfallDelta),
-            soil: Math.round(soilDelta),
-            slope: Math.round(slopeDelta),
-            historical: Math.round(historicalDelta),
-            satellite: Math.round(satelliteDelta)
-        };
+    /*
+     * Transparent modeled-risk calculation.
+     * This is a scenario risk index, not a validated probability.
+     */
 
-        const getLevel = (score) => {
-            if (score >= 80) return 'WARNING';
-            if (score >= 60) return 'ALERT';
-            if (score >= 30) return 'WATCH';
-            return 'SAFE';
-        };
+    const rainfallDelta =
+        ((rainfall - safe(baseline.rainfall)) / 100) * 25;
 
-        return {
-            simulatedRisk,
-            simulatedLevel: getLevel(simulatedRisk),
-            delta: Math.round(totalDelta),
-            contributions
-        };
-    }
+    const rainProbabilityDelta =
+        ((rainProbability - safe(baseline.rainProbability)) / 100) * 15;
+
+    const soilDelta =
+        ((soilMoisture - safe(baseline.soilMoisture)) / 100) * 15;
+
+    const slopeDelta =
+        ((slope - safe(baseline.slope)) / 60) * 15;
+
+    const windSpeedDelta =
+        ((windSpeed - safe(baseline.windSpeed)) / 100) * 10;
+
+    const windGustsDelta =
+        ((windGusts - safe(baseline.windGusts)) / 150) * 10;
+
+    const totalDelta =
+        rainfallDelta +
+        rainProbabilityDelta +
+        soilDelta +
+        slopeDelta +
+        windSpeedDelta +
+        windGustsDelta;
+
+    const simulatedRisk = Math.max(
+        0,
+        Math.min(
+            100,
+            Math.round(baselineRisk + totalDelta)
+        )
+    );
+
+    const contributions = {
+        rainfall: Math.round(rainfallDelta),
+        rainProbability: Math.round(rainProbabilityDelta),
+        soil: Math.round(soilDelta),
+        slope: Math.round(slopeDelta),
+        windSpeed: Math.round(windSpeedDelta),
+        windGusts: Math.round(windGustsDelta)
+    };
+
+    const getLevel = (score) => {
+        if (score >= 80) return 'WARNING';
+        if (score >= 60) return 'ALERT';
+        if (score >= 30) return 'WATCH';
+        return 'SAFE';
+    };
+
+    return {
+        simulatedRisk,
+        simulatedLevel: getLevel(simulatedRisk),
+        delta: Math.round(totalDelta),
+        contributions
+    };
+}
 
     // ============ RUN SIMULATION ============
     async function runSimulation() {
-        showLoading();
+    showLoading();
 
-        try {
-            const result = await Services.runSimulation(state.currentLocation, state.currentParams);
-            
-            if (result.error) {
-                hideLoading();
-                showToast('Unable to run simulation', 'error');
-                return;
-            }
+    try {
+        const calculated = calculateSimulation(state.currentParams);
 
-            state.simulatedResult = result;
-            hideLoading();
+        const result = {
+            delta: calculated.delta,
 
-            // Animate score transition
-            animateRiskScore(result.simulatedRisk);
+           baseline: {
+    risk: Number(document.getElementById('currentRiskScore')?.textContent) || 0,
+    level: document.getElementById('currentRiskLevel')?.textContent || 'SAFE'
+},
 
-            // Show result section
-            renderResultSection(result);
+            simulated: {
+                risk: calculated.simulatedRisk,
+                level: calculated.simulatedLevel
+            },
 
-            // Render projection chart
-            renderProjectionChart(result.projection);
+            contributions: calculated.contributions,
 
-            // Update mini map
-            updateMiniMapZone(result.simulated.risk, result.simulated.level);
+            projection: [
+                {
+                    label: 'Current',
+                    risk: Number(document.getElementById('currentRiskScore')?.textContent) || 0
+                },
+                {
+                    label: 'Scenario',
+                    risk: calculated.simulatedRisk
+                }
+            ]
+        };
 
-            showToast('Scenario analysis complete', 'success');
-        } catch (err) {
-            hideLoading();
-            showToast('Unable to run simulation', 'error');
-        }
+        state.simulatedResult = result;
+
+        hideLoading();
+
+        animateRiskScore(result.simulated.risk);
+        renderResultSection(result);
+        renderProjectionChart(result.projection);
+        updateMiniMapZone(
+            result.simulated.risk,
+            result.simulated.level
+        );
+
+        showToast('Scenario analysis complete', 'success');
+
+    } catch (err) {
+        console.error('Simulation error:', err);
+        hideLoading();
+        showToast('Unable to run simulation', 'error');
     }
+}
 
     function animateRiskScore(targetScore) {
         const scoreEl = document.getElementById('simulatedRiskScore');
@@ -346,13 +593,14 @@
         const simulatedLevel = result.simulated.level;
 
         const driversHtml = Object.entries(result.contributions).map(([key, val]) => {
-            const labels = {
-                rainfall: 'Rainfall',
-                soil: 'Soil Moisture',
-                slope: 'Slope',
-                historical: 'Historical',
-                satellite: 'Satellite'
-            };
+const labels = {
+    rainfall: 'Rainfall',
+    rainProbability: 'Rain Probability',
+    soil: 'Soil Moisture',
+    slope: 'Slope',
+    windSpeed: 'Wind Speed',
+    windGusts: 'Wind Gusts'
+};
             const maxVal = 30;
             const pct = Math.min(100, Math.abs(val) / maxVal * 100);
             const cls = val > 0 ? 'positive' : val < 0 ? 'negative' : 'neutral';
@@ -374,7 +622,7 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                         Scenario Result
                     </div>
-                    <span class="infra-card-badge" style="font-size: 9px; font-weight: 700; letter-spacing: 0.1em; padding: 2px 8px; background: var(--watch-bg); color: var(--watch); border-radius: var(--radius-sm);">DEMO</span>
+                   
                 </div>
                 <div class="sim-result-body">
                     <div class="risk-change-summary">
@@ -570,13 +818,32 @@
         const baseline = state.baseline;
 
         // Calculate new values based on multipliers
-        const newParams = {
-            rainfall: Math.round(baseline.rainfall * preset.rainfallMultiplier),
-            soilMoisture: Math.round(baseline.soilMoisture * preset.soilMultiplier),
-            slope: Math.round(baseline.slope * preset.slopeMultiplier),
-            historicalWeight: Math.round(baseline.historicalWeight * preset.historicalMultiplier),
-            satelliteWeight: Math.round(baseline.satelliteWeight * preset.satelliteMultiplier)
-        };
+// Calculate new values based on multipliers
+const newParams = {
+    rainfall: Math.round(
+        baseline.rainfall * preset.rainfallMultiplier
+    ),
+
+    rainProbability: Math.round(
+        baseline.rainProbability * preset.rainProbabilityMultiplier
+    ),
+
+    soilMoisture: Math.round(
+        baseline.soilMoisture * preset.soilMoistureMultiplier
+    ),
+
+    slope: Math.round(
+        baseline.slope * preset.slopeMultiplier
+    ),
+
+    windSpeed: Math.round(
+        baseline.windSpeed * preset.windSpeedMultiplier
+    ),
+
+    windGusts: Math.round(
+        baseline.windGusts * preset.windGustsMultiplier
+    )
+};
 
         // Clamp to slider ranges
         Object.keys(newParams).forEach(key => {
@@ -597,6 +864,56 @@
         updateLivePreview();
         showToast(`${preset.name} applied`, 'info');
     }
+    function updatePresetScenarioCards() {
+    if (!state.baseline) return;
+
+    const moderatePreset = {
+        rainfall: Math.max(10, state.baseline.rainfall * 1.4),
+        rainProbability: Math.max(20, state.baseline.rainProbability * 1.3),
+        soilMoisture: Math.max(30, state.baseline.soilMoisture * 1.2),
+        slope: state.baseline.slope * 1.0,
+        windSpeed: Math.max(20, state.baseline.windSpeed * 1.2),
+        windGusts: Math.max(30, state.baseline.windGusts * 1.3)
+    };
+
+    const severePreset = {
+        rainfall: Math.max(25, state.baseline.rainfall * 1.8),
+        rainProbability: Math.max(50, state.baseline.rainProbability * 1.7),
+        soilMoisture: Math.max(50, state.baseline.soilMoisture * 1.5),
+        slope: state.baseline.slope * 1.1,
+        windSpeed: Math.max(35, state.baseline.windSpeed * 1.5),
+        windGusts: Math.max(50, state.baseline.windGusts * 1.7)
+    };
+
+    const moderate = calculateSimulation(moderatePreset);
+    const severe = calculateSimulation(severePreset);
+
+    const moderateScore = document.getElementById('presetModerateScore');
+    const moderateLevel = document.getElementById('presetModerateLevel');
+
+    const severeScore = document.getElementById('presetSevereScore');
+    const severeLevel = document.getElementById('presetSevereLevel');
+
+    if (moderateScore) {
+        moderateScore.textContent = `${moderate.simulatedRisk}/100`;
+    }
+
+    if (moderateLevel) {
+        moderateLevel.textContent = moderate.simulatedLevel;
+        moderateLevel.className =
+            `scenario-preset-level ${moderate.simulatedLevel.toLowerCase()}`;
+    }
+
+    if (severeScore) {
+        severeScore.textContent = `${severe.simulatedRisk}/100`;
+    }
+
+    if (severeLevel) {
+        severeLevel.textContent = severe.simulatedLevel;
+        severeLevel.className =
+            `scenario-preset-level ${severe.simulatedLevel.toLowerCase()}`;
+    }
+}
 
     function resetScenario() {
         state.currentParams = { ...state.baseline };
@@ -705,7 +1022,10 @@
             'users': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
             'settings': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg>',
             'cloud-rain': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="13" x2="16" y2="21"/><line x1="8" y1="13" x2="8" y2="21"/><line x1="12" y1="15" x2="12" y2="23"/><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/></svg>',
-            'droplet': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>'
+
+'wind': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h11a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7a3 3 0 1 1-3 3"/></svg>',
+
+'droplet': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>'
         };
         return icons[name] || '';
     }

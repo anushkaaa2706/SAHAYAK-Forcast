@@ -107,8 +107,9 @@
             renderResults(routeData);
             drawRoute(routeData);
         } catch (err) {
-            showError('Unable to analyze route');
-        }
+    console.error('Route analysis error:', err);
+    showError('Unable to analyze route: ' + (err.message || 'Unknown error'));
+}
     }
 
     function showLoading() {
@@ -146,7 +147,7 @@
         const primary = routeData.primary;
         const alt = routeData.alternative;
         const pLevel = primary.level.toLowerCase();
-        const aLevel = alt.level.toLowerCase();
+const aLevel = alt ? alt.level.toLowerCase() : '';
 
         // Count segments by level
         const segCounts = { CRITICAL: 0, HIGH: 0, WATCH: 0, SAFE: 0 };
@@ -170,7 +171,7 @@
             `;
         }).join('');
 
-        const additionalTime = alt.time - primary.time;
+       const additionalTime = alt ? alt.time - primary.time : 0; 
 
         results.innerHTML = `
             <!-- Primary Route -->
@@ -276,10 +277,10 @@
             <div class="alternative-card">
                 <div class="alternative-header">
                     <div class="alternative-title">Live Route Alternatives</div>
-                    <span class="route-result-badge alternative">NOT RETURNED</span>
+                    <span class="route-result-badge alternative">NOT AVAILABLE</span>
                 </div>
                 <div class="alternative-body">
-                    <div class="alternative-stat-sub">The live routing service returned only one road route for this request. No synthetic alternative has been created.</div>
+                    <div class="alternative-stat-sub">No alternative route is available for this request.
                 </div>
             </div>`}
 
@@ -308,32 +309,60 @@
                 <div class="route-explanation-note">Derived from the live SAHAYAK risk model and current route data.</div>
             </div>
 
-            <!-- Activity -->
-            <div class="route-activity">
-                <div class="route-activity-header">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    Recent Route Activity
-                </div>
-                <div class="route-activity-list" id="routeActivityList"></div>
-            </div>
         `;
 
         // Load activity
-        loadActivity();
+       
 
         // Animate factors
         setTimeout(animateFactors, 100);
     }
 
     function generateExplanation(routeData) {
-        const primary = routeData.primary;
-        const highRiskSegs = primary.segments.filter(s => s.level === 'HIGH' || s.level === 'CRITICAL');
-        
-        if (highRiskSegs.length > 0) {
-            return `Steep terrain and elevated rainfall contribute most to the modeled route risk. ${highRiskSegs.length} segment${highRiskSegs.length > 1 ? 's' : ''} show high-risk conditions requiring careful monitoring.`;
-        }
-        return `Moderate terrain conditions with some elevated rainfall. The route is generally safe but requires standard monitoring.`;
+    const primary = routeData.primary;
+
+    if (!primary) {
+        return 'Live route risk information is currently unavailable.';
     }
+
+    const risk = Number(primary.overallRisk || 0);
+    const level = primary.level || 'SAFE';
+
+    const factors = Array.isArray(routeData.riskFactors)
+        ? routeData.riskFactors
+        : [];
+
+    if (factors.length === 0) {
+        if (level === 'SAFE') {
+            return `The live route risk index is ${risk}/100. Current forecast conditions do not show significant severe-weather indicators.`;
+        }
+
+        return `The live route risk index is ${risk}/100. Continue monitoring current weather conditions along the route.`;
+    }
+
+    const factorNames = factors
+        .map(f => f.label)
+        .filter(Boolean);
+
+    const factorText =
+        factorNames.length === 1
+            ? factorNames[0]
+            : factorNames.slice(0, 3).join(', ');
+
+    if (level === 'SAFE') {
+        return `The live route risk index is ${risk}/100. The main contributing factors are ${factorText}. Current conditions remain within the SAFE range, but weather conditions should continue to be monitored.`;
+    }
+
+    if (level === 'WATCH') {
+        return `The live route risk index is ${risk}/100. The main contributing factors are ${factorText}. Conditions require increased monitoring because weather conditions may affect route safety.`;
+    }
+
+    if (level === 'HIGH') {
+        return `The live route risk index is ${risk}/100. The main contributing factors are ${factorText}. Elevated weather-related risk is present along this route.`;
+    }
+
+    return `The live route risk index is ${risk}/100. The main contributing factors are ${factorText}. Severe weather indicators require close attention along this route.`;
+}
 
     function getSegmentIcon(level) {
         const icons = {
@@ -550,22 +579,7 @@
         if (container) observer.observe(container);
     }
 
-    // ============ LOAD ACTIVITY ============
-    async function loadActivity() {
-        const activity = await Services.getRouteActivity();
-        const list = document.getElementById('routeActivityList');
-        if (!list) return;
 
-        list.innerHTML = activity.map(a => `
-            <div class="route-activity-item type-${a.type}">
-                <div class="route-activity-icon">${a.icon}</div>
-                <div class="route-activity-content">
-                    <div class="route-activity-title">${a.title}</div>
-                    <div class="route-activity-meta">${a.location} · ${a.time}</div>
-                </div>
-            </div>
-        `).join('');
-    }
 
     function retry() { analyzeRoute(); }
 

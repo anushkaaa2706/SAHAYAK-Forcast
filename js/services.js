@@ -2867,96 +2867,37 @@ async getRainfallMapData() {
 
   async getSimulationPresets() {
     await this._delay(50);
+
     return {
       current: {
         name: 'Current Conditions',
         rainfallMultiplier: 1.0,
-        soilMultiplier: 1.0,
+        rainProbabilityMultiplier: 1.0,
+        soilMoistureMultiplier: 1.0,
         slopeMultiplier: 1.0,
-        historicalMultiplier: 1.0,
-        satelliteMultiplier: 1.0
+        windSpeedMultiplier: 1.0,
+        windGustsMultiplier: 1.0
       },
+
       moderate: {
         name: 'Moderate Scenario',
         rainfallMultiplier: 1.4,
-        soilMultiplier: 1.2,
+        rainProbabilityMultiplier: 1.3,
+        soilMoistureMultiplier: 1.2,
         slopeMultiplier: 1.0,
-        historicalMultiplier: 1.1,
-        satelliteMultiplier: 1.2
+        windSpeedMultiplier: 1.2,
+        windGustsMultiplier: 1.3
       },
+
       severe: {
         name: 'Severe Scenario',
         rainfallMultiplier: 1.8,
-        soilMultiplier: 1.5,
+        rainProbabilityMultiplier: 1.7,
+        soilMoistureMultiplier: 1.5,
         slopeMultiplier: 1.1,
-        historicalMultiplier: 1.3,
-        satelliteMultiplier: 1.5
+        windSpeedMultiplier: 1.5,
+        windGustsMultiplier: 1.7
       }
-    };
-  },
-
-  async runSimulation(locationName, params) {
-    await this._delay(800); // Simulate API call delay
-
-    const zone = this._findZone(locationName);
-    if (!zone) {
-      return { error: 'Location not found' };
-    }
-
-    const baseline = zone.simulatorBaseline || {
-      rainfall: zone.rainfall || 100,
-      soilMoisture: zone.soilMoisture || 50,
-      slope: zone.slope || 25,
-      historicalWeight: 50,
-      satelliteWeight: 20
-    };
-
-    const baselineRisk = zone.risk;
-
-    // Transparent demo formula
-    const rainfallDelta = ((params.rainfall - baseline.rainfall) / 200) * 25;
-    const soilDelta = ((params.soilMoisture - baseline.soilMoisture) / 80) * 20;
-    const slopeDelta = ((params.slope - baseline.slope) / 50) * 20;
-    const historicalDelta = ((params.historicalWeight - baseline.historicalWeight) / 100) * 15;
-    const satelliteDelta = ((params.satelliteWeight - baseline.satelliteWeight) / 80) * 10;
-
-    const totalDelta = rainfallDelta + soilDelta + slopeDelta + historicalDelta + satelliteDelta;
-    const simulatedRisk = Math.max(0, Math.min(100, Math.round(baselineRisk + totalDelta)));
-
-    const getLevel = (score) => {
-      if (score >= 80) return 'WARNING';
-      if (score >= 60) return 'ALERT';
-      if (score >= 30) return 'WATCH';
-      return 'SAFE';
-    };
-
-    const contributions = {
-      rainfall: Math.round(rainfallDelta),
-      soil: Math.round(soilDelta),
-      slope: Math.round(slopeDelta),
-      historical: Math.round(historicalDelta),
-      satellite: Math.round(satelliteDelta)
-    };
-
-    // Generate projection data for chart
-    const projection = [];
-    const labels = ['Now', '+6h', '+12h', '+18h', '+24h'];
-    for (let i = 0; i < 5; i++) {
-      const progress = i / 4;
-      const riskAtStep = Math.max(0, Math.min(100, Math.round(baselineRisk + totalDelta * progress)));
-      projection.push({
-        label: labels[i],
-        risk: riskAtStep
-      });
-    }
-
-    return {
-      baseline: { risk: baselineRisk, level: getLevel(baselineRisk) },
-      simulated: { risk: simulatedRisk, level: getLevel(simulatedRisk) },
-      delta: Math.round(totalDelta),
-      contributions,
-      projection,
-      isDemo: true
     };
   },
   // ============================================================
@@ -3035,12 +2976,482 @@ async getRainfallMapData() {
     read: false
   });
 
-  return {
-    ...newUser,
-    isDemo: true
-  };
+      return {
+      ...newUser,
+      isDemo: false
+    };
+  },
+
+  // ============================================================
+  // ROUTE RISK ANALYSIS
+  // ============================================================
+
+    async analyzeRoute(startLocation, destination) {
+
+    const start = await this._resolveCoordinates(startLocation);
+    const end = await this._resolveCoordinates(destination);
+
+    if (!start || !end) {
+        return {
+            error: 'Unable to find coordinates for the selected locations.'
+        };
+    }
+
+    // ============================================================
+    // 1. GET REAL ROAD ROUTES FROM OSRM
+    // ============================================================
+
+    const url =
+        `${this.API.OSRM}/` +
+        `${start.lng},${start.lat};` +
+        `${end.lng},${end.lat}` +
+        `?overview=full&geometries=geojson&steps=true&alternatives=true`;
+
+    const data = await this._safeFetch(url, null);
+
+    if (!data || data.code !== 'Ok' || !data.routes?.length) {
+        return {
+            error: 'Unable to find a road route between these locations.'
+        };
+    }
+
+    // ============================================================
+    // 2. WEATHER RISK CALCULATOR
+    // ============================================================
+
+    const calculateWeatherRisk = async (lat, lng) => {
+
+        const weatherUrl =
+            `${this.API.OPEN_METEO}` +
+            `?latitude=${encodeURIComponent(lat)}` +
+            `&longitude=${encodeURIComponent(lng)}` +
+            `&hourly=precipitation,relative_humidity_2m,cloud_cover,` +
+            `precipitation_probability,wind_speed_10m,wind_gusts_10m,` +
+            `weather_code,soil_moisture_0_to_7cm` +
+            `&forecast_days=1` +
+            `&timezone=auto`;
+
+        const weatherData =
+            await this._safeFetch(weatherUrl, null);
+
+        if (!weatherData?.hourly) {
+            return null;
+        }
+
+        const h = weatherData.hourly;
+        const times = h.time || [];
+
+        if (!times.length) {
+            return null;
+        }
+
+        const precipitation = h.precipitation || [];
+        const humidity = h.relative_humidity_2m || [];
+        const cloud = h.cloud_cover || [];
+        const probability = h.precipitation_probability || [];
+        const wind = h.wind_speed_10m || [];
+        const gusts = h.wind_gusts_10m || [];
+        const codes = h.weather_code || [];
+        const soil = h.soil_moisture_0_to_7cm || [];
+
+        const now = new Date();
+
+        let currentIndex =
+            times.findIndex(t => new Date(t) >= now);
+
+        if (currentIndex < 0) {
+            currentIndex = 0;
+        }
+
+        // Look at the next 6 hours at this route location.
+        let highestRisk = 0;
+        let highestPoint = null;
+
+        for (
+            let i = currentIndex;
+            i < Math.min(currentIndex + 6, times.length);
+            i++
+        ) {
+
+            const rain = Number(precipitation[i] || 0);
+            const hum = Number(humidity[i] || 0);
+            const clouds = Number(cloud[i] || 0);
+            const prob = Number(probability[i] || 0);
+            const windSpeed = Number(wind[i] || 0);
+            const windGust = Number(gusts[i] || 0);
+            const weatherCode = Number(codes[i] ?? -1);
+            const soilMoisture = Number(soil[i] || 0);
+
+            let score = 0;
+
+            // Rainfall intensity
+            score += Math.min(30, rain * 3);
+
+            // Probability of precipitation
+            score += prob * 0.20;
+
+            // Humidity
+            score += Math.min(
+                10,
+                Math.max(0, hum - 70) * 0.33
+            );
+
+            // Cloud cover
+            score += clouds * 0.10;
+
+            // Wind
+            score += Math.min(10, windSpeed * 0.25);
+
+            // Wind gusts
+            score += Math.min(10, windGust * 0.15);
+
+            // Thunderstorm
+            if ([95, 96, 99].includes(weatherCode)) {
+                score += 10;
+            }
+
+            // Wet soil adds a small vulnerability contribution.
+            score += Math.min(
+                5,
+                Math.max(0, soilMoisture - 0.30) * 10
+            );
+
+            score = Math.round(
+                Math.max(0, Math.min(100, score))
+            );
+
+            if (score > highestRisk) {
+                highestRisk = score;
+
+                highestPoint = {
+                    timestamp: times[i],
+                    rainfall: rain,
+                    humidity: hum,
+                    cloudCover: clouds,
+                    precipitationProbability: prob,
+                    windSpeed,
+                    windGusts: windGust,
+                    weatherCode,
+                    soilMoisture
+                };
+            }
+        }
+
+        return {
+            risk: highestRisk,
+            weather: highestPoint
+        };
+    };
+
+    // ============================================================
+    // 3. CALCULATE RISK FOR A SPECIFIC ROAD ROUTE
+    // ============================================================
+
+    const analyzeRoadRoute = async (roadRoute) => {
+
+        const routeGeometry =
+            roadRoute.geometry?.coordinates?.map(
+                p => [p[1], p[0]]
+            ) || [];
+
+        if (!routeGeometry.length) {
+            return null;
+        }
+
+        const startPoint = routeGeometry[0];
+
+        const midpoint =
+            routeGeometry[
+                Math.floor(routeGeometry.length / 2)
+            ];
+
+        const endPoint =
+            routeGeometry[routeGeometry.length - 1];
+
+        // Check weather at three different points.
+        const weatherResults = await Promise.all([
+            calculateWeatherRisk(
+                startPoint[0],
+                startPoint[1]
+            ),
+            calculateWeatherRisk(
+                midpoint[0],
+                midpoint[1]
+            ),
+            calculateWeatherRisk(
+                endPoint[0],
+                endPoint[1]
+            )
+        ]);
+
+        const validResults =
+            weatherResults.filter(Boolean);
+
+        if (!validResults.length) {
+            return null;
+        }
+
+        // Use the highest-risk point because one dangerous
+        // section can make the route unsafe.
+        const highest =
+            validResults.reduce(
+                (best, current) =>
+                    current.risk > best.risk
+                        ? current
+                        : best
+            );
+
+        const highestWeather =
+            highest.weather || {};
+
+        let level = 'SAFE';
+
+        if (highest.risk >= 81) {
+            level = 'CRITICAL';
+        } else if (highest.risk >= 61) {
+            level = 'HIGH';
+        } else if (highest.risk >= 31) {
+            level = 'WATCH';
+        }
+
+        const reasons = [];
+
+        if (highestWeather.rainfall >= 10) {
+            reasons.push('heavy rainfall');
+        } else if (highestWeather.rainfall >= 5) {
+            reasons.push('elevated rainfall');
+        }
+
+        if (
+            highestWeather.precipitationProbability >= 60
+        ) {
+            reasons.push('high rain probability');
+        }
+
+        if (highestWeather.windGusts >= 50) {
+            reasons.push('strong wind gusts');
+        } else if (highestWeather.windSpeed >= 30) {
+            reasons.push('elevated wind speed');
+        }
+
+        if (
+            [95, 96, 99].includes(
+                Number(highestWeather.weatherCode ?? -1)
+            )
+        ) {
+            reasons.push('thunderstorm conditions');
+        }
+
+        if (highestWeather.cloudCover >= 80) {
+            reasons.push('high cloud cover');
+        }
+
+        if (highestWeather.soilMoisture >= 0.60) {
+            reasons.push('high soil moisture');
+        }
+
+        const reason =
+            reasons.length
+                ? reasons.join(', ') + '.'
+                : 'No major severe-weather indicators detected in the next 6 hours.';
+
+        const distance =
+            Number(roadRoute.distance || 0) / 1000;
+
+        const time =
+            Math.round(
+                Number(roadRoute.duration || 0) / 60
+            );
+
+        const riskFactors = [
+            {
+                label: 'Rainfall',
+                value: Math.round(
+                    Math.min(
+                        30,
+                        Number(highestWeather.rainfall || 0) * 3
+                    )
+                ),
+                description:
+                    'Live rainfall intensity along the route'
+            },
+            {
+                label: 'Rain Probability',
+                value: Math.round(
+                    Number(
+                        highestWeather.precipitationProbability || 0
+                    ) * 0.20
+                ),
+                description:
+                    'Forecast precipitation probability'
+            },
+            {
+                label: 'Wind',
+                value: Math.round(
+                    Math.min(
+                        20,
+                        Number(highestWeather.windSpeed || 0) * 0.25 +
+                        Number(highestWeather.windGusts || 0) * 0.15
+                    )
+                ),
+                description:
+                    'Wind speed and gust conditions'
+            },
+            {
+                label: 'Thunderstorm',
+                value:
+                    [95, 96, 99].includes(
+                        Number(
+                            highestWeather.weatherCode ?? -1
+                        )
+                    )
+                        ? 10
+                        : 0,
+                description:
+                    'WMO weather-code thunderstorm indicator'
+            },
+            {
+                label: 'Soil Moisture',
+                value: Math.round(
+                    Math.min(
+                        5,
+                        Math.max(
+                            0,
+                            Number(
+                                highestWeather.soilMoisture || 0
+                            ) - 0.30
+                        ) * 10
+                    )
+                ),
+                description:
+                    'Live soil moisture supporting factor'
+            }
+        ].filter(f => f.value > 0);
+
+        return {
+            distance: Number(distance.toFixed(1)),
+            time,
+            risk: highest.risk,
+            level,
+            reason,
+            riskFactors,
+            geometry: routeGeometry,
+            source: 'OSRM + Open-Meteo'
+        };
+    };
+
+    // ============================================================
+    // 4. ANALYZE PRIMARY ROUTE
+    // ============================================================
+
+    const primaryAnalysis =
+        await analyzeRoadRoute(data.routes[0]);
+
+    if (!primaryAnalysis) {
+        return {
+            error: 'Unable to calculate live weather risk for this route.'
+        };
+    }
+
+    const primary = {
+        name: `${startLocation} → ${destination}`,
+        distance: primaryAnalysis.distance,
+        time: primaryAnalysis.time,
+        overallRisk: primaryAnalysis.risk,
+        level: primaryAnalysis.level,
+        segments: [{
+            id: 'segment-1',
+            name: 'Live Weather Route',
+            level: primaryAnalysis.level,
+            risk: primaryAnalysis.risk,
+            distance: primaryAnalysis.distance,
+            reason: primaryAnalysis.reason,
+            geometry: primaryAnalysis.geometry,
+            source: primaryAnalysis.source
+        }],
+        waypoints: primaryAnalysis.geometry
+    };
+
+    // ============================================================
+    // 5. ANALYZE REAL ALTERNATIVE IF OSRM RETURNS ONE
+    // ============================================================
+
+    let alternative = null;
+
+    if (data.routes[1]) {
+
+        const alternativeAnalysis =
+            await analyzeRoadRoute(data.routes[1]);
+
+        if (alternativeAnalysis) {
+
+            alternative = {
+                name:
+                    `${startLocation} → ${destination} (Alternative)`,
+
+                distance:
+                    alternativeAnalysis.distance,
+
+                time:
+                    alternativeAnalysis.time,
+
+                overallRisk:
+                    alternativeAnalysis.risk,
+
+                level:
+                    alternativeAnalysis.level,
+
+                segments: [{
+                    id: 'alternative-segment-1',
+                    name: 'Alternative Weather Route',
+                    level: alternativeAnalysis.level,
+                    risk: alternativeAnalysis.risk,
+                    distance: alternativeAnalysis.distance,
+                    reason: alternativeAnalysis.reason,
+                    geometry: alternativeAnalysis.geometry,
+                    source: alternativeAnalysis.source
+                }],
+
+                waypoints:
+                    alternativeAnalysis.geometry
+            };
+        }
+    }
+
+    return {
+        start: startLocation,
+        destination,
+
+        startCoordinates: [
+            start.lat,
+            start.lng
+        ],
+
+        destinationCoordinates: [
+            end.lat,
+            end.lng
+        ],
+
+        primary,
+
+        alternative,
+
+        riskFactors:
+            primaryAnalysis.riskFactors,
+
+        isDemo: false
+    };
+},};
+
+
+// ============================================================
+// GLOBAL EXPORT
+// ============================================================
+
+if (typeof window !== 'undefined') {
+  window.Services = Services;
 }
-};
+
 
 
 // ============================================================
