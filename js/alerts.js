@@ -9,6 +9,26 @@
       selectedAlert: null,
       notifications: []
     };
+
+    // Render exposure data safely: older alert records may store roads as
+    // an array/object rather than a numeric count.
+    function formatExposureCount(value) {
+      if (value == null || value === '') return '0';
+      if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '0';
+      if (typeof value === 'string') return value;
+      if (Array.isArray(value)) return String(value.length);
+      if (typeof value === 'object') {
+        for (const key of ['count', 'total', 'length', 'value']) {
+          const candidate = value[key];
+          if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+            return String(candidate);
+          }
+        }
+        if (Array.isArray(value.roads)) return String(value.roads.length);
+        return String(Object.keys(value).length);
+      }
+      return '0';
+    }
   
     async function init() {
       setPageUser();
@@ -227,7 +247,7 @@
                 <div class="alert-exposure-label">People</div>
               </div>
               <div class="alert-exposure-item">
-                <div class="alert-exposure-value">${a.roads}</div>
+                <div class="alert-exposure-value">${formatExposureCount(a.roads)}</div>
                 <div class="alert-exposure-label">Roads</div>
               </div>
               <div class="alert-exposure-item">
@@ -365,7 +385,7 @@
               </div>
               <div class="detail-info-item">
                 <div class="detail-info-label">Roads</div>
-                <div class="detail-info-value">${alert.roads}</div>
+                <div class="detail-info-value">${formatExposureCount(alert.roads)}</div>
               </div>
               <div class="detail-info-item">
                 <div class="detail-info-label">Schools</div>

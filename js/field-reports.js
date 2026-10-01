@@ -104,10 +104,41 @@ setPageUser();
       return icons[name] || '';
     }
   
+    function correctLegacyDemoLocations() {
+      // Older submissions stored the officer's default district (Tawang) even
+      // when their GPS coordinates were elsewhere. Correct those mismatches once
+      // using the saved coordinates; keep genuine Tawang demo records untouched.
+      const reports = SahayakState.getReports() || [];
+      reports.forEach(report => {
+        const lat = Number(report.latitude);
+        const lon = Number(report.longitude);
+        if (String(report.location || '').trim().toLowerCase() !== 'tawang' ||
+            !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        const isActuallyNearTawang = Math.abs(lat - 27.586) <= 0.75 && Math.abs(lon - 91.859) <= 0.75;
+        if (isActuallyNearTawang) return;
+
+        const latDirection = lat < 0 ? 'S' : 'N';
+        const lonDirection = lon < 0 ? 'W' : 'E';
+        const coordinateLabel = `${Math.abs(lat).toFixed(4)}° ${latDirection}, ${Math.abs(lon).toFixed(4)}° ${lonDirection}`;
+        SahayakState.updateReport(report.id, {
+          location: coordinateLabel,
+          state: 'Location not resolved',
+          locationSource: 'gps-coordinate-correction'
+        });
+      });
+    }
+
     async function loadReports() {
       const loading = document.getElementById('reportsLoading');
       if (loading) loading.style.display = 'block';
+      correctLegacyDemoLocations();
       state.reports = await Services.getFieldReports(state.filters);
+      // Rejected reports are archived in the Rejected tab and removed from the
+      // active All/Pending lists, while their status remains persisted.
+      if (state.currentTab !== 'rejected' && state.filters.status !== 'REJECTED') {
+        state.reports = state.reports.filter(report => report.status !== 'REJECTED');
+      }
       renderReports();
       renderMapMarkers();
       if (loading) loading.style.display = 'none';
@@ -115,7 +146,7 @@ setPageUser();
   
     function renderSummary() {
       const all = SahayakState.getReports();
-      document.getElementById('summaryTotal').textContent = all.length;
+      document.getElementById('summaryTotal').textContent = all.filter(r => r.status !== 'REJECTED').length;
       document.getElementById('summaryPending').textContent = all.filter(r => r.status === 'PENDING').length;
       document.getElementById('summaryVerified').textContent = all.filter(r => r.status === 'VERIFIED').length;
       document.getElementById('summaryCritical').textContent = all.filter(r => r.severity === 'CRITICAL').length;
@@ -124,7 +155,7 @@ setPageUser();
     function renderTabs() {
       const all = SahayakState.getReports();
       const counts = {
-        all: all.length,
+        all: all.filter(r => r.status !== 'REJECTED').length,
         pending: all.filter(r => r.status === 'PENDING').length,
         verified: all.filter(r => r.status === 'VERIFIED').length,
         rejected: all.filter(r => r.status === 'REJECTED').length,
@@ -274,6 +305,7 @@ setPageUser();
               <div class="report-card-actions">
                 <button class="btn btn-outline" onclick="event.stopPropagation(); window.SahayakFieldReports.openDetail('${r.id}')">View</button>
                 <button class="btn btn-primary" onclick="event.stopPropagation(); window.SahayakFieldReports.verifyReport('${r.id}', 'verify')">Verify</button>
+                <button class="btn btn-outline" style="color: #DC2626; border-color: #FCA5A5;" onclick="event.stopPropagation(); window.SahayakFieldReports.verifyReport('${r.id}', 'reject')">Reject</button>
                 <button class="btn btn-outline" onclick="event.stopPropagation(); window.SahayakFieldReports.verifyReport('${r.id}', 'reinspect')">Request Inspection</button>
               </div>
             ` : ''}
@@ -400,12 +432,52 @@ setPageUser();
     }
   
     async function verifyReport(id, result) {
-      await Services.verifyFieldReport(id, result);
-      closeDetail();
-      await loadReports();
-      renderSummary();
-      renderTabs();
-      renderActivityFeed();
+      if (result === 'reject' && !window.confirm(`Reject field report ${id}? It will be removed from the active report list and kept in the Rejected tab.`)) {
+        return;
+      }
+
+      try {
+        const outcome = await Services.verifyFieldReport(id, result);
+        const expectedStatus = result === 'verify' ? 'VERIFIED' :
+          result === 'reject' ? 'REJECTED' : 'REINSPECTION_REQUESTED';
+        const savedReport = SahayakState.getReports().find(report => report.id === id);
+        if (!outcome || outcome.success !== true || !savedReport || savedReport.status !== expectedStatus) {
+          throw new Error('The report status could not be saved.');
+        }
+
+        closeDetail();
+        await loadReports();
+        renderSummary();
+        renderTabs();
+        renderActivityFeed();
+
+        if (result === 'reject') {
+          showFieldReportToast(`Report ${id} rejected and moved to Rejected.`);
+        } else if (result === 'verify') {
+          showFieldReportToast(`Report ${id} verified successfully.`);
+        } else if (result === 'reinspect') {
+          showFieldReportToast(`Re-inspection requested for ${id}.`);
+        }
+      } catch (error) {
+        console.error('Unable to update field report:', error);
+        window.alert(error.message || 'Unable to update the field report. Please try again.');
+      }
+    }
+
+    function showFieldReportToast(message) {
+      let toast = document.getElementById('fieldReportActionToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'fieldReportActionToast';
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
+        toast.style.cssText = 'position:fixed;right:24px;bottom:24px;z-index:99999;max-width:min(420px,calc(100vw - 32px));padding:14px 18px;background:#0F172A;color:#fff;border:1px solid #334155;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.22);font:500 14px/1.45 system-ui,sans-serif;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      toast.style.display = 'block';
+      if (toast._hideTimer) window.clearTimeout(toast._hideTimer);
+      toast._hideTimer = window.setTimeout(() => { toast.style.display = 'none'; }, 3500);
     }
   
     // ============ MAP ============

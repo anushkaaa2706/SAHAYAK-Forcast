@@ -8,6 +8,8 @@
         latitude: null,
         longitude: null,
         accuracy: null,
+        locationName: '',
+        locationState: '',
         severity: '',
         observation: '',
         aiPredictionMatch: '',
@@ -15,7 +17,7 @@
       },
      officer: {
       name: '',
-      district: 'Tawang',
+      district: '',
       role: ''
     },
       isOffline: false,
@@ -150,51 +152,101 @@ if (user.district) {
       if (obs) obs.addEventListener('input', (e) => { state.formData.observation = e.target.value; });
     }
   
-    function captureGPS() {
+    function formatCoordinates(latitude, longitude, digits = 4) {
+      const latDirection = latitude < 0 ? 'S' : 'N';
+      const lonDirection = longitude < 0 ? 'W' : 'E';
+      return `${Math.abs(latitude).toFixed(digits)}° ${latDirection}, ${Math.abs(longitude).toFixed(digits)}° ${lonDirection}`;
+    }
+
+    async function resolveLocationName(latitude, longitude) {
+      // Reverse-geocode the captured GPS position. If the service is unavailable,
+      // coordinates remain the truthful location instead of a hardcoded demo district.
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(latitude)}&lon=${encodeURIComponent(longitude)}&zoom=10&addressdetails=1`;
+        const response = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        if (!response.ok) throw new Error('Reverse geocoding unavailable');
+        const result = await response.json();
+        const address = result.address || {};
+        const locality = address.suburb || address.neighbourhood || address.city_district ||
+          address.city || address.town || address.village || address.municipality ||
+          address.county || address.state_district || '';
+        const region = address.state || address.region || '';
+        state.formData.locationName = [locality, region].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ')
+          || result.name || formatCoordinates(latitude, longitude, 4);
+        state.formData.locationState = region || address.country || '';
+      } catch (error) {
+        state.formData.locationName = formatCoordinates(latitude, longitude, 4);
+        state.formData.locationState = '';
+      }
+    }
+
+    async function captureGPS() {
       const coordsEl = document.getElementById('gpsCoords');
       const accuracyEl = document.getElementById('gpsAccuracy');
       const captureBtn = document.getElementById('captureGpsBtn');
-  
+
       if (!navigator.geolocation) {
-        useDemoGPS();
+        coordsEl.textContent = 'GPS is not available in this browser';
+        accuracyEl.textContent = 'Use a browser/device with location access enabled';
         return;
       }
-  
+
       captureBtn.textContent = 'Capturing...';
       captureBtn.disabled = true;
-  
+
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           state.formData.latitude = pos.coords.latitude;
           state.formData.longitude = pos.coords.longitude;
           state.formData.accuracy = Math.round(pos.coords.accuracy);
-          coordsEl.textContent = `${pos.coords.latitude.toFixed(4)}° N, ${pos.coords.longitude.toFixed(4)}° E`;
-          accuracyEl.textContent = `Accuracy: ±${state.formData.accuracy}m`;
+          state.formData.locationName = '';
+          state.formData.locationState = '';
+          coordsEl.textContent = formatCoordinates(pos.coords.latitude, pos.coords.longitude);
+          accuracyEl.textContent = `Accuracy: ±${state.formData.accuracy}m · Resolving place name...`;
           captureBtn.textContent = '✓ Location Captured';
           captureBtn.style.background = 'var(--safe-bg)';
           captureBtn.style.color = 'var(--safe)';
           captureBtn.style.borderColor = 'var(--safe)';
+          captureBtn.disabled = false;
+
+          await resolveLocationName(pos.coords.latitude, pos.coords.longitude);
+          accuracyEl.textContent = `Accuracy: ±${state.formData.accuracy}m`;
+          // Show both the resolved locality and the exact coordinates so the user
+          // can verify that the report is tied to the captured position.
+          coordsEl.textContent = `${state.formData.locationName} · ${formatCoordinates(pos.coords.latitude, pos.coords.longitude)}`;
         },
-        () => {
-          useDemoGPS();
+        (error) => {
+          state.formData.latitude = null;
+          state.formData.longitude = null;
+          state.formData.accuracy = null;
+          state.formData.locationName = '';
+          state.formData.locationState = '';
+          coordsEl.textContent = 'Location not captured';
+          accuracyEl.textContent = error && error.code === 1
+            ? 'Location permission denied. Allow location access and try again.'
+            : 'Could not get GPS location. Check device location and try again.';
+          captureBtn.textContent = '📍 Capture Location';
+          captureBtn.disabled = false;
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     }
-  
+
     function useDemoGPS() {
       state.formData.latitude = 27.586;
       state.formData.longitude = 91.859;
       state.formData.accuracy = 15;
+      state.formData.locationName = 'Tawang (Demo)';
+      state.formData.locationState = 'Arunachal Pradesh';
       const coordsEl = document.getElementById('gpsCoords');
       const accuracyEl = document.getElementById('gpsAccuracy');
       const captureBtn = document.getElementById('captureGpsBtn');
-      coordsEl.textContent = '27.5860° N, 91.8590° E (Demo)';
+      coordsEl.textContent = 'Tawang (Demo) · 27.5860° N, 91.8590° E';
       accuracyEl.textContent = 'Accuracy: ±15m (Demo)';
       captureBtn.textContent = '✓ Demo Location';
       captureBtn.disabled = false;
     }
-  
+
     function setupPhotoUpload() {
       const uploadArea = document.getElementById('photoUploadArea');
       const fileInput = document.getElementById('photoFileInput');
@@ -258,6 +310,7 @@ if (user.district) {
     }
   
     async function saveOffline() {
+      if (!hasCapturedLocation()) { alert('Please capture your current GPS location before saving the report.'); return; }
       const report = buildReport();
       report.id = 'FR-OFF-' + Date.now();
       await Services.addToOfflineQueue(report);
@@ -268,6 +321,7 @@ if (user.district) {
       if (!state.formData.type) { alert('Please select a report type'); return; }
       if (!state.formData.severity) { alert('Please select severity'); return; }
       if (!state.formData.observation) { alert('Please describe your observation'); return; }
+      if (!hasCapturedLocation()) { alert('Please capture your current GPS location before submitting the report.'); return; }
   
       const report = buildReport();
   
@@ -279,16 +333,20 @@ if (user.district) {
       showSuccess(false);
     }
   
+    function hasCapturedLocation() {
+      return Number.isFinite(state.formData.latitude) && Number.isFinite(state.formData.longitude);
+    }
+
     function buildReport() {
       return {
         type: state.formData.type,
-        location: state.officer.district,
-        state: 'Arunachal Pradesh',
+        location: state.formData.locationName || formatCoordinates(state.formData.latitude, state.formData.longitude, 4),
+        state: state.formData.locationState || 'Location not resolved',
         severity: state.formData.severity,
         officer: state.officer.name,
         officerRole: state.officer.role,
-        latitude: state.formData.latitude || 27.586,
-        longitude: state.formData.longitude || 91.859,
+        latitude: state.formData.latitude,
+        longitude: state.formData.longitude,
         observation: state.formData.observation,
         aiPredictionMatch: state.formData.aiPredictionMatch || 'unable',
         aiRisk: 82,
@@ -419,7 +477,7 @@ if (user.district) {
   
     window.SahayakFieldReportNew = {
       captureGPS, removePhoto,
-      saveOffline, submitReport,
+      saveOffline, submitReport, useDemoGPS,
       toggleOffline
     };
   

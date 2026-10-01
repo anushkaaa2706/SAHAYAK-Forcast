@@ -188,6 +188,93 @@
       icon.style.color = c.color;
     }
   
+    // Build a draft warning from the next available forecast hours.
+    // This is a forecast-based decision aid, not an official meteorological alert.
+    async function generateFromForecast() {
+      const location = state.formData.location;
+      if (!location) {
+        alert('Please select a location first.');
+        return;
+      }
+
+      const button = document.getElementById('forecastWarningBtn');
+      const originalText = button ? button.textContent : '';
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Checking forecast…';
+      }
+
+      try {
+        const forecast = await Services.getSevereWeatherForecast(location);
+        if (!Array.isArray(forecast) || forecast.length === 0) {
+          alert('No live forecast is available for this location. Please choose another listed location or create the warning manually.');
+          return;
+        }
+
+        const nextSixHours = forecast.slice(0, 6);
+        const maxRain = Math.max(...nextSixHours.map(h => Number(h.rainfall) || 0));
+        const maxProb = Math.max(...nextSixHours.map(h => Number(h.precipitationProbability) || 0));
+        const maxGust = Math.max(...nextSixHours.map(h => Number(h.windGusts) || 0));
+        const maxCloud = Math.max(...nextSixHours.map(h => Number(h.cloudCover) || 0));
+        const wetHours = nextSixHours.filter(h => (Number(h.rainfall) || 0) >= 2).length;
+
+        // Transparent, rule-based thresholds for this prototype.
+        let severity = 'watch';
+        if (maxRain >= 20 || (maxRain >= 10 && maxProb >= 80) || maxGust >= 70) {
+          severity = 'critical';
+        } else if (maxRain >= 10 || (maxRain >= 5 && maxProb >= 70) || maxGust >= 55) {
+          severity = 'warning';
+        } else if (maxRain >= 2 || maxProb >= 50 || maxGust >= 40) {
+          severity = 'alert';
+        }
+
+        const score = Math.max(10, Math.min(100, Math.round(
+          Math.max(maxRain / 25 * 100, maxProb, maxGust / 90 * 100)
+        )));
+        const zone = DEMO_DATA.riskZones.find(z => z.location === location);
+        const severityScore = { watch: 25, alert: 50, warning: 75, critical: 90 };
+        state.formData.severity = severity;
+        state.formData.riskScore = Math.max(score, severityScore[severity]);
+
+        document.querySelectorAll('input[name="severity"]').forEach(radio => {
+          radio.checked = radio.value === severity;
+        });
+        const riskDisplay = document.getElementById('riskScoreDisplay');
+        if (riskDisplay) riskDisplay.textContent = state.formData.riskScore + ' / 100';
+
+        const forecastTime = nextSixHours[0]?.hour || 'the next 6 hours';
+        state.formData.reason =
+          `Forecast-based outlook for ${forecastTime} onward: peak hourly precipitation ${maxRain.toFixed(1)} mm, ` +
+          `precipitation probability ${maxProb}%, wind gusts up to ${maxGust.toFixed(0)} km/h, ` +
+          `cloud cover up to ${maxCloud}%. ${wetHours} of the next ${nextSixHours.length} forecast hours show at least 2 mm of rain. ` +
+          `These are model forecast values, not confirmed observations.`;
+
+        state.formData.action = severity === 'critical'
+          ? 'Urgently review the forecast with the local meteorological/disaster authority, alert response teams, monitor vulnerable areas and prepare protective action if confirmed by officials.'
+          : severity === 'warning'
+            ? 'Increase monitoring, verify conditions with official weather bulletins, and place local response teams on standby.'
+            : severity === 'alert'
+              ? 'Monitor updated forecasts and official advisories; inform relevant local officers and prepare to escalate if conditions worsen.'
+              : 'Continue routine monitoring and check the next forecast update. Do not treat this outlook as an official warning.';
+
+        const reason = document.getElementById('reason');
+        const action = document.getElementById('action');
+        if (reason) reason.value = state.formData.reason;
+        if (action) action.value = state.formData.action;
+        updatePreview();
+
+        alert(`Forecast draft prepared for ${location}. Please review it before generating a warning.`);
+      } catch (error) {
+        console.error('Forecast warning generation failed:', error);
+        alert('Could not load the forecast. Please try again or create the warning manually.');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      }
+    }
+
     async function saveDraft() {
       alert('Draft saved (demo)');
     }
@@ -349,7 +436,7 @@
     }
   
     window.SahayakAlertCreate = {
-      saveDraft, generateWarning, sendAlert
+      saveDraft, generateWarning, sendAlert, generateFromForecast
     };
   
     document.addEventListener('DOMContentLoaded', init);

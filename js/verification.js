@@ -73,23 +73,31 @@
   
     // ============ LOAD ITEMS ============
     async function loadItems() {
-  const loading = document.getElementById('verificationLoading');
+      const loading = document.getElementById('verificationLoading');
+      if (loading) loading.style.display = 'block';
+      try {
+        const stored = SahayakState.get('verificationItems');
+        const all = Array.isArray(stored) ? stored : DEMO_DATA.verificationItems;
+        const status = String(state.filters.status || 'all').toUpperCase();
+        state.items = all.filter(item => {
+          if (status !== 'ALL' && item.status !== status) return false;
+          if (state.filters.state !== 'all' && item.state !== state.filters.state) return false;
+          if (state.filters.riskLevel !== 'all' && item.aiLevel !== state.filters.riskLevel) return false;
+          const q = String(state.filters.search || '').trim().toLowerCase();
+          if (q && ![item.id, item.reportId, item.location, item.state, item.officer].some(value => String(value || '').toLowerCase().includes(q))) return false;
+          if (status === 'ALL' && item.status === 'REJECTED') return false;
+          return true;
+        });
+        renderItems();
+      } catch (error) {
+        console.error('Failed to load verification data:', error);
+        state.items = [];
+        renderItems();
+      } finally {
+        if (loading) loading.style.display = 'none';
+      }
+    }
 
-  if (loading) loading.style.display = 'block';
-
-  try {
-    state.items = await Services.getVerificationData(state.filters);
-    renderItems();
-  } catch (error) {
-    console.error('Failed to load verification data:', error);
-
-    state.items = DEMO_DATA.verificationItems;
-    renderItems();
-  } finally {
-    if (loading) loading.style.display = 'none';
-  }
-}
-  
     // ============ SUMMARY ============
     function renderSummary() {
      const storedItems = SahayakState.get('verificationItems');
@@ -660,77 +668,54 @@ const items = (Array.isArray(storedItems) && storedItems.length > 0
   
     // ============ ACTIONS ============
     async function verify(id) {
+      const user = AUTH.getUser();
+      const allowedRoles = ['super_admin', 'disaster_authority', 'district_officer', 'field_officer'];
+      if (!user || !allowedRoles.includes(user.role)) {
+        showToast('warning', '!', 'Access denied', 'You do not have permission to verify reports.', '');
+        return;
+      }
+      try {
+        const items = SahayakState.get('verificationItems');
+        if (!Array.isArray(items)) throw new Error('Verification records are unavailable.');
+        const index = items.findIndex(item => item.id === id);
+        if (index < 0) throw new Error('The selected verification record was not found.');
+        if (items[index].status !== 'PENDING') return;
+        items[index] = { ...items[index], status: 'VERIFIED', verifiedAt: new Date().toISOString() };
+        SahayakState.set('verificationItems', items);
+        if (SahayakState.get('verificationItems')?.find(item => item.id === id)?.status !== 'VERIFIED') throw new Error('Could not save verification status.');
+        await refreshAll();
+        if (state.selectedItem?.id === id) closeDetail();
+        showToast('success', '✓', 'Prediction verified successfully', `${id} — field evidence confirmed`, '');
+      } catch (error) {
+        console.error('Could not verify report:', error);
+        showToast('warning', '!', 'Verification not saved', 'Please try again. The report status was not confirmed.', '');
+      }
+    }
 
-  const user = AUTH.getUser();
-
-  const allowedRoles = [
-    'super_admin',
-    'disaster_authority',
-    'district_officer',
-    'field_officer'
-  ];
-
-  if (!user || !allowedRoles.includes(user.role)) {
-    showToast(
-      'warning',
-      '!',
-      'Access denied',
-      'You do not have permission to verify reports.',
-      ''
-    );
-    return;
-  }
-
-  await Services.verifyFieldReport(id, 'verify');
-
-  showToast(
-    'success',
-    '✓',
-    'Prediction verified successfully',
-    `${id} — field evidence confirmed`,
-  );
-
-  await refreshAll();
-
-  if (state.selectedItem?.id === id) closeDetail();
-}
-  
     async function reject(id) {
+      const user = AUTH.getUser();
+      const allowedRoles = ['super_admin', 'disaster_authority', 'district_officer', 'field_officer'];
+      if (!user || !allowedRoles.includes(user.role)) {
+        showToast('warning', '!', 'Access denied', 'You do not have permission to reject reports.', '');
+        return;
+      }
+      try {
+        const items = SahayakState.get('verificationItems');
+        if (!Array.isArray(items)) throw new Error('Verification records are unavailable.');
+        const index = items.findIndex(item => item.id === id);
+        if (index < 0) throw new Error('The selected verification record was not found.');
+        items[index] = { ...items[index], status: 'REJECTED', rejectedAt: new Date().toISOString() };
+        SahayakState.set('verificationItems', items);
+        if (SahayakState.get('verificationItems')?.find(item => item.id === id)?.status !== 'REJECTED') throw new Error('Could not save rejection status.');
+        await refreshAll();
+        if (state.selectedItem?.id === id) closeDetail();
+        showToast('warning', '✗', 'Prediction rejected', `${id} — field observation differs from AI`, '');
+      } catch (error) {
+        console.error('Could not reject report:', error);
+        showToast('warning', '!', 'Rejection not saved', 'Please try again. The report status was not confirmed.', '');
+      }
+    }
 
-  const user = AUTH.getUser();
-
-  const allowedRoles = [
-    'super_admin',
-    'disaster_authority',
-    'district_officer',
-    'field_officer'
-  ];
-
-  if (!user || !allowedRoles.includes(user.role)) {
-    showToast(
-      'warning',
-      '!',
-      'Access denied',
-      'You do not have permission to reject reports.',
-      ''
-    );
-    return;
-  }
-
-  await Services.verifyFieldReport(id, 'reject');
-
-  showToast(
-    'warning',
-    '✗',
-    'Prediction rejected',
-    `${id} — field observation differs from AI`,
-  );
-
-  await refreshAll();
-
-  if (state.selectedItem?.id === id) closeDetail();
-}
-  
     async function requestInspection(id) {
 
   const user = AUTH.getUser();

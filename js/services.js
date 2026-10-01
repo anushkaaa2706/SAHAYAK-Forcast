@@ -1130,7 +1130,7 @@ async getAllRiskZones() {
 
     const messages = {
       verify: 'Prediction verified',
-      reject: 'Prediction not verified',
+      reject: 'Field report rejected',
       reinspect: 'Re-inspection requested'
     };
     SahayakState.addNotification({
@@ -1140,7 +1140,9 @@ async getAllRiskZones() {
       message:
         `Report ${id} — ${result === 'verify'
           ? 'Field observation confirmed'
-          : 'Action required'
+          : result === 'reject'
+            ? 'Rejected by the reviewing authority'
+            : 'Action required'
         }`,
       timestamp: 'Just now',
       read: false
