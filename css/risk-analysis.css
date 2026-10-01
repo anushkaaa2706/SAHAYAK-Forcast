@@ -1107,3 +1107,236 @@
 @media (prefers-reduced-motion: reduce) {
     .gauge-fill, .factor-bar-fill, .timeline-event { transition: none !important; }
 }
+/* ============================================================
+   2–6 HOUR SEVERE WEATHER OUTLOOK
+   ============================================================ */
+
+.severe-outlook-section {
+    margin-bottom: 24px;
+}
+
+.severe-outlook-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(130px, 1fr));
+    gap: 10px;
+    overflow-x: auto;
+    padding: 4px 0;
+}
+
+.severe-outlook-item {
+    min-width: 130px;
+    padding: 14px;
+    border: 1px solid #444;
+    border-radius: 10px;
+    background: #1a1f27;
+    color: #ffffff;
+    opacity: 1;
+    visibility: visible;
+    display: block;
+}
+.severe-outlook-time {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    opacity: 0.65;
+}
+
+.severe-outlook-hour {
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.severe-outlook-main-risk {
+    margin-top: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.severe-outlook-main-risk strong {
+    font-size: 25px;
+}
+
+.severe-outlook-main-risk span {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.severe-outlook-main-risk.safe,
+.severe-outlook-main-risk.watch,
+.severe-outlook-main-risk.alert,
+.severe-outlook-main-risk.warning {
+    opacity: 1;
+}
+
+.severe-outlook-main-risk.alert {
+    font-weight: 700;
+}
+
+.severe-outlook-main-risk.warning {
+    font-weight: 800;
+}
+
+.severe-outlook-hazard {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.severe-outlook-metrics {
+    margin-top: 14px;
+    display: grid;
+    gap: 7px;
+}
+
+.severe-outlook-metrics div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10px;
+}
+
+.severe-outlook-metrics span {
+    opacity: 0.65;
+}
+
+.severe-outlook-metrics strong {
+    font-size: 11px;
+}
+
+.severe-outlook-note {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color, #2a2f38);
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: 0.65;
+}
+
+@media (max-width: 1100px) {
+    .severe-outlook-grid {
+        grid-template-columns: repeat(7, minmax(145px, 1fr));
+    }
+}
+.ai-factors-section {
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-color, #2a2f38);
+}
+
+.ai-factors-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 14px;
+}
+
+.ai-factors-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.ai-factor-row {
+    width: 100%;
+}
+
+.ai-factor-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.ai-factor-name {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ai-factor-value {
+    font-size: 12px;
+    opacity: 0.75;
+}
+
+.ai-factor-bar {
+    width: 100%;
+    height: 7px;
+    background: #252a32;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.ai-factor-fill {
+    height: 100%;
+    background: #6ea8fe;
+    border-radius: 10px;
+}
+
+.ai-no-factors {
+    font-size: 13px;
+    opacity: 0.7;
+}
+.ai-factors-subtitle {
+    font-size: 12px;
+    opacity: 0.65;
+    margin-top: -8px;
+    margin-bottom: 14px;
+}
+.actionable-warning {
+    margin-bottom: 24px;
+}
+
+.actionable-warning-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.actionable-warning-title {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.actionable-warning-score {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.actionable-warning-message {
+    margin: 0 0 18px;
+    line-height: 1.6;
+}
+
+.actionable-warning-subtitle {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.actionable-warning-actions ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.actionable-warning-actions li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.actionable-warning-note {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color, #2a2f38);
+    font-size: 12px;
+    opacity: 0.65;
+    line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+    .actionable-warning-main {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

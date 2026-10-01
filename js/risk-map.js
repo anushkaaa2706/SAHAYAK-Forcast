@@ -630,7 +630,9 @@
           <button class="location-intel-close" onclick="window.SahayakRiskMap.closeLocationPanel()" aria-label="Close">
             ${getIcon('x')}
           </button>
-          <div class="location-intel-label">HIGH LANDSLIDE RISK</div>
+<div class="location-intel-label">
+  ${String(zone.level || 'RISK').toUpperCase()} HAZARD RISK
+</div>
           <div class="location-intel-name">${zone.location}</div>
           <div class="location-intel-state">${zone.state}</div>
           <div class="location-score-row">
@@ -645,14 +647,21 @@
                 <div class="location-score-max">/ 100</div>
               </div>
             </div>
-            <div class="location-score-meta">
-              <div class="location-probability">Landslide Probability</div>
-              <div class="location-probability-value" data-target-prob="${probability}">0%</div>
-              <div class="location-risk-status status-${level}">
-                <span>${zone.level}</span>
-              </div>
-              <div class="location-demo-note">Illustrative model output — DEMO</div>
-            </div>
+           <div class="location-score-meta">
+  <div class="location-probability">Risk Index</div>
+
+  <div class="location-probability-value">
+    ${Math.round(zone.risk ?? zone.modelRiskScore ?? 0)}/100
+  </div>
+
+  <div class="location-risk-status status-${level}">
+    <span>${zone.level}</span>
+  </div>
+
+  <div class="location-demo-note">
+    AI risk assessment based on current available signals
+  </div>
+</div>
           </div>
         </div>
         <div class="location-intel-body">
@@ -673,13 +682,7 @@
             </div>
           </div>
           <div class="location-section">
-            <div class="location-section-title">${getIcon('users')} Exposure</div>
-            <div class="location-params-grid">
-              <div class="location-param"><span class="location-param-label">Nearby Population</span><span class="location-param-value">${Utils.formatNumber(zone.population)}</span></div>
-              <div class="location-param"><span class="location-param-label">Roads</span><span class="location-param-value">${zone.roads}</span></div>
-              <div class="location-param"><span class="location-param-label">Schools</span><span class="location-param-value">${zone.schools}</span></div>
-              <div class="location-param"><span class="location-param-label">Hospital</span><span class="location-param-value">${zone.hospitals}</span></div>
-            </div>
+           
           </div>
           <div class="location-section">
             <div class="location-ai-explanation">
@@ -689,10 +692,9 @@
               </div>
               <div class="location-ai-bars">${factorsHtml}</div>
               <div class="location-ai-text">
-                Risk increased because accumulated rainfall and soil moisture are elevated, while steep terrain and historical landslide patterns increase susceptibility.
-              </div>
+
               <div class="location-ai-footer">
-                <span>Illustrative SHAP-style explanation — DEMO</span>
+               
                 <a href="${ROUTES.riskAnalysis}">View Full Analysis →</a>
               </div>
             </div>
@@ -702,7 +704,7 @@
           <a href="${ROUTES.riskAnalysis}" class="btn btn-primary">View Full Analysis →</a>
           <a href="${ROUTES.alerts}" class="btn btn-outline">Generate Warning</a>
           <button class="btn btn-outline" onclick="window.SahayakRiskMap.openAssignModal()">Assign Field Officer</button>
-          <a href="${ROUTES.infrastructure}" class="btn btn-outline">View Infrastructure →</a>
+         
         </div>
       `;
   
@@ -779,10 +781,7 @@
           <span class="map-info-stat-label">Active Reports</span>
           <span class="map-info-stat-value">${DEMO_DATA.fieldStats.reports}</span>
         </div>
-        <div class="map-info-stat">
-          <span class="map-info-stat-label">Population Exposure</span>
-          <span class="map-info-stat-value">${Utils.formatNumber(population)}</span>
-        </div>
+       
       `;
     }
   

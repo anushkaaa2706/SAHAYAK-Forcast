@@ -1257,6 +1257,7 @@ async getAllRiskZones() {
         timeout: 80000
       }
     );
+    console.log('SAHAYAK MODEL RESPONSE:', model);
 
     // ============================================================
     // VALIDATE MODEL RESPONSE

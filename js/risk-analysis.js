@@ -111,8 +111,10 @@
         if (titleBadge) titleBadge.textContent = `${d.location.toUpperCase()} · ${d.level}`;
 
         main.innerHTML = `
-            ${renderRiskOverview(d, level)}
-            <div class="analysis-grid">
+          ${renderRiskOverview(d, level)}
+${renderSevereWeatherOutlook(d)}
+${renderActionableWarning(d)}
+<div class="analysis-grid">
                 <div>
                     ${renderTrendChart(d)}
                     ${renderFactorSection(d)}
@@ -734,33 +736,123 @@
 
     // ============ AI EXPLANATION ============
 function renderAIExplanation(d) {
+    const factors = Array.isArray(d.modelFactors)
+        ? d.modelFactors
+        : [];
+
+    const factorRows = factors.length > 0
+        ? factors.map(factor => `
+            <div class="ai-factor-row">
+                <div class="ai-factor-info">
+                    <span class="ai-factor-name">
+                        ${factor.feature}
+                    </span>
+                    <span class="ai-factor-value">
+                        ${Number(factor.contribution).toFixed(2)}
+                    </span>
+                </div>
+                <div class="ai-factor-bar">
+                    <div
+                        class="ai-factor-fill"
+                        style="width: ${Math.min(
+                            Math.abs(Number(factor.contribution)),
+                            100
+                        )}%">
+                    </div>
+                </div>
+            </div>
+        `).join('')
+        : `
+            <div class="ai-no-factors">
+                Model factor details are currently unavailable.
+            </div>
+        `;
+
     return `
         <section class="analysis-card" aria-label="AI explanation">
+
             <div class="analysis-card-header">
-                <div class="analysis-card-title">AI Explanation</div>
-                <span class="analysis-card-badge">${d.modelConnected ? 'LIVE' : 'DEMO'}</span>
+                <div class="analysis-card-title">
+                    AI Explanation
+                </div>
+
+                <span class="analysis-card-badge">
+                    ${d.modelConnected ? 'LIVE' : 'DEMO'}
+                </span>
             </div>
+
             <div class="analysis-card-body">
-                <p class="ai-explanation-text">${generateExplanation(d)}</p>
+
+                <p class="ai-explanation-text">
+                    ${generateExplanation(d)}
+                </p>
+
+                <div class="ai-factors-section">
+
+                    <div class="ai-factors-title">
+    Top Model Risk Factors · Contribution Score
+</div>
+
+<div class="ai-factors-subtitle">
+    Higher values indicate stronger influence on the model's current assessment.
+</div>
+
+                    <div class="ai-factors-list">
+                        ${factorRows}
+                    </div>
+
+                </div>
+
             </div>
+
         </section>`;
 }
 
-    function generateExplanation(d) {
-        const level = d.level;
-        const primary = d.interpretation?.primaryDriver || 'environmental conditions';
-        const secondary = d.interpretation?.secondaryDriver || 'terrain characteristics';
+function generateExplanation(d) {
+    const level = String(d.level || '').toUpperCase();
+    const score = Number(d.risk ?? d.modelRiskScore ?? 0);
 
-        if (level === 'WARNING') {
-            return `Risk increased significantly because 72-hour accumulated rainfall crossed the local demonstration threshold, soil moisture is high, and the location has steep terrain with multiple historical landslide events. The combination of these factors has pushed the risk score into the WARNING range, indicating potential for imminent landslide activity.`;
-        } else if (level === 'ALERT') {
-            return `Risk has risen to ALERT level due to increasing ${primary.toLowerCase()} combined with ${secondary.toLowerCase()}. The location shows elevated susceptibility based on terrain and historical patterns. Continuous monitoring is recommended.`;
-        } else if (level === 'WATCH') {
-            return `Risk is currently in the WATCH range. ${primary} is the primary contributor, with ${secondary} playing a supporting role. Conditions are being monitored for any escalation.`;
-        } else {
-            return `Risk is currently in the SAFE range. Environmental conditions are within normal demonstration thresholds. Routine monitoring continues.`;
-        }
+    const factors = Array.isArray(d.modelFactors)
+        ? d.modelFactors
+        : [];
+
+    const topFactors = factors
+        .slice()
+        .sort(
+            (a, b) =>
+                Math.abs(Number(b.contribution || 0)) -
+                Math.abs(Number(a.contribution || 0))
+        )
+        .slice(0, 3);
+
+    const factorText = topFactors.length > 0
+        ? topFactors
+            .map(f => String(f.feature || 'environmental factor'))
+            .join(', ')
+        : 'environmental conditions';
+
+    if (level === 'CRITICAL') {
+        return `The AI risk model currently assigns a ${score}/100 CRITICAL risk index. The main model factors contributing to this assessment are ${factorText}. These factors indicate significantly elevated hazard conditions for this location and require close monitoring and timely assessment.`;
     }
+
+    if (level === 'HIGH') {
+        return `The AI risk model currently assigns a ${score}/100 HIGH risk index. The main model factors contributing to this assessment are ${factorText}. These conditions indicate elevated hazard risk and should be monitored closely for further escalation.`;
+    }
+
+    if (level === 'WARNING') {
+        return `The risk has reached the WARNING range with a ${score}/100 risk index. The model identifies ${factorText} among the main contributing factors, indicating significantly elevated hazard conditions.`;
+    }
+
+    if (level === 'ALERT') {
+        return `The risk is currently at ALERT level with a ${score}/100 risk index. The model identifies ${factorText} among the main contributing factors. Continued monitoring is recommended for possible escalation.`;
+    }
+
+    if (level === 'WATCH') {
+        return `The risk is currently in the WATCH range with a ${score}/100 risk index. The model identifies ${factorText} among the main contributing factors. Conditions should continue to be monitored for changes.`;
+    }
+
+    return `The AI risk model currently assigns a ${score}/100 SAFE risk index. The model does not currently indicate significantly elevated hazard conditions for this location.`;
+}
 
     function showFullExplanation() {
         const d = state.data;
@@ -962,37 +1054,75 @@ function renderEnvironmentalConditions(d) {
 }
     // ============ TERRAIN PANEL ============
     function renderTerrainPanel(d) {
-        const items = [
-            { label: 'Slope', value: `${d.slope}°`, indicator: d.slope > 35 ? 'high' : d.slope > 25 ? 'moderate' : 'low', indicatorLabel: d.slope > 35 ? 'Steep' : d.slope > 25 ? 'Moderate' : 'Gentle' },
-            { label: 'Elevation', value: `${Utils.formatNumber(d.elevation)} m`, indicator: d.elevation > 1800 ? 'elevated' : 'low', indicatorLabel: d.elevation > 1800 ? 'High' : 'Normal' },
-            { label: 'Aspect', value: d.aspect || 'N/A', indicator: 'low', indicatorLabel: 'Directional' },
-            { label: 'Curvature', value: d.curvature || 'Low', indicator: d.curvature === 'High' ? 'elevated' : d.curvature === 'Moderate' ? 'moderate' : 'low', indicatorLabel: d.curvature || 'Low' },
-            { label: 'Stability', value: d.terrainStability || 'Stable', indicator: d.terrainStability === 'Unstable' ? 'high' : d.terrainStability === 'Elevated' ? 'elevated' : d.terrainStability === 'Moderate' ? 'moderate' : 'low', indicatorLabel: d.terrainStability || 'Stable' }
-        ];
+    const items = [
+        {
+            label: 'Slope',
+            value: `${d.slope ?? 'N/A'}°`,
+            indicator: d.slope > 35
+                ? 'high'
+                : d.slope > 25
+                    ? 'moderate'
+                    : 'low',
+            indicatorLabel: d.slope > 35
+                ? 'Steep'
+                : d.slope > 25
+                    ? 'Moderate'
+                    : 'Gentle'
+        },
+        {
+            label: 'Elevation',
+            value: d.elevation != null
+                ? `${Utils.formatNumber(d.elevation)} m`
+                : 'N/A',
+            indicator: d.elevation > 1800
+                ? 'elevated'
+                : 'low',
+            indicatorLabel: d.elevation > 1800
+                ? 'Elevated'
+                : 'Normal'
+        }
+    ];
 
-        const html = items.map(i => `
-            <div class="terrain-item">
-                <div class="terrain-item-label">${i.label}</div>
-                <div class="terrain-item-value">${i.value}</div>
-                <span class="terrain-item-indicator ${i.indicator}">${i.indicatorLabel}</span>
+    const html = items.map(i => `
+        <div class="terrain-item">
+            <div class="terrain-item-label">${i.label}</div>
+            <div class="terrain-item-value">${i.value}</div>
+            <span class="terrain-item-indicator ${i.indicator}">
+                ${i.indicatorLabel}
+            </span>
+        </div>
+    `).join('');
+
+    return `
+        <section class="analysis-card" aria-label="Terrain context">
+            <div class="analysis-card-header">
+                <div class="analysis-card-title">
+                    <svg viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M3 20l4-8 4 4 4-10 6 14"/>
+                    </svg>
+                    Terrain Context
+                </div>
             </div>
-        `).join('');
 
-        return `
-            <section class="analysis-card" aria-label="Terrain analysis">
-                <div class="analysis-card-header">
-                    <div class="analysis-card-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20l4-8 4 4 4-10 6 14"/></svg>
-                        Terrain Analysis
-                    </div>
+            <div class="analysis-card-body">
+
+                <div class="terrain-grid">
+                    ${html}
                 </div>
-                <div class="analysis-card-body">
-                    <div class="terrain-grid">${html}</div>
-                    <a href="${ROUTES.terrain}" class="btn btn-outline btn-block">Open Terrain Analysis →</a>
-                </div>
-            </section>
-        `;
-    }
+
+                <p class="terrain-context-note">
+                    Topographic conditions are used as supporting context
+                    for rainfall runoff and flash-flood risk.
+                </p>
+
+            </div>
+        </section>
+    `;
+}
 
     // ============ SATELLITE PANEL ============
     function renderSatellitePanel(d) {
@@ -1346,7 +1476,7 @@ function renderEnvironmentalConditions(d) {
                         <span class="historical-count-label">historical events near ${d.location}</span>
                     </div>
                     <div class="historical-years">${yearsHtml || '<div style="font-size: var(--fs-xs); color: var(--text-400);">No recorded events in demonstration data</div>'}</div>
-                    <div class="historical-note">Historical patterns are included as demonstration context.</div>
+                    
                     <a href="${ROUTES.historical}" class="btn btn-outline btn-block">Explore Historical Events →</a>
                 </div>
             </section>
@@ -1970,7 +2100,326 @@ function renderEnvironmentalConditions(d) {
         </section>
     `;
 }
+// ============ 2–6 HOUR SEVERE WEATHER OUTLOOK ============
+function renderSevereWeatherOutlook(d) {
+    const forecast = Array.isArray(d.severeWeatherForecast)
+        ? d.severeWeatherForecast
+        : [];
 
+    if (!forecast.length) {
+        return `
+            <section class="analysis-card severe-outlook-card">
+                <div class="analysis-card-header">
+                    <div>
+                        <div class="analysis-card-title">2–6 HOUR SEVERE WEATHER OUTLOOK</div>
+                        <div class="analysis-card-subtitle">
+                            Live forecast unavailable for this location
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    }
+
+    const getRiskLevel = (score) => {
+        if (score >= 81) return 'WARNING';
+        if (score >= 61) return 'ALERT';
+        if (score >= 31) return 'WATCH';
+        return 'SAFE';
+    };
+
+    const getRiskClass = (score) => {
+        if (score >= 81) return 'warning';
+        if (score >= 61) return 'alert';
+        if (score >= 31) return 'watch';
+        return 'safe';
+    };
+
+    const calculateRisks = (item) => {
+        const rain = Number(item.rainfall || 0);
+        const probability = Number(item.precipitationProbability || 0);
+        const humidity = Number(item.humidity || 0);
+        const cloud = Number(item.cloudCover || 0);
+        const wind = Number(item.windSpeed || 0);
+        const gust = Number(item.windGusts || 0);
+        const soil = Number(item.soilMoisture || 0);
+        const thunderstorm = [95, 96, 99].includes(Number(item.weatherCode));
+
+        // Prototype risk indices — not calibrated probabilities.
+        const thunderstormRisk = Math.min(
+            100,
+            Math.round(
+                (thunderstorm ? 45 : 0) +
+                rain * 2 +
+                probability * 0.25 +
+                Math.max(0, humidity - 70) * 0.4 +
+                cloud * 0.15 +
+                wind * 0.15
+            )
+        );
+
+        const cloudburstRisk = Math.min(
+            100,
+            Math.round(
+                rain * 5 +
+                probability * 0.25 +
+                Math.max(0, humidity - 75) * 0.6 +
+                Math.max(0, cloud - 70) * 0.2
+            )
+        );
+
+        const flashFloodRisk = Math.min(
+            100,
+            Math.round(
+                rain * 4 +
+                probability * 0.15 +
+                soil * 0.25
+            )
+        );
+
+        const strongWindRisk = Math.min(
+            100,
+            Math.round(
+                wind * 0.6 +
+                gust * 0.55
+            )
+        );
+
+        return {
+            thunderstorm: thunderstormRisk,
+            cloudburst: cloudburstRisk,
+            flashFlood: flashFloodRisk,
+            strongWind: strongWindRisk
+        };
+    };
+
+    const cards = forecast.map((item, index) => {
+        const risks = calculateRisks(item);
+
+        const peakRisk = Math.max(...Object.values(risks));
+        const peakHazard = Object.entries(risks)
+            .sort((a, b) => b[1] - a[1])[0][0];
+
+        const hazardNames = {
+            thunderstorm: 'Thunderstorm',
+            cloudburst: 'Cloudburst',
+            flashFlood: 'Flash Flood',
+            strongWind: 'Strong Wind'
+        };
+
+        const timeLabel = index === 0
+            ? 'NOW'
+            : `+${index}H`;
+
+        return `
+            <div class="severe-outlook-item">
+                <div class="severe-outlook-time">${timeLabel}</div>
+
+                <div class="severe-outlook-hour">
+                    ${item.hour || '--:--'}
+                </div>
+
+                <div class="severe-outlook-main-risk ${getRiskClass(peakRisk)}">
+                    <strong>${peakRisk}</strong>
+                    <span>${getRiskLevel(peakRisk)}</span>
+                </div>
+
+                <div class="severe-outlook-hazard">
+                    ${hazardNames[peakHazard]}
+                </div>
+
+                <div class="severe-outlook-metrics">
+                    <div>
+                        <span>Thunderstorm</span>
+                        <strong>${risks.thunderstorm}</strong>
+                    </div>
+
+                    <div>
+                        <span>Cloudburst</span>
+                        <strong>${risks.cloudburst}</strong>
+                    </div>
+
+                    <div>
+                        <span>Flash Flood</span>
+                        <strong>${risks.flashFlood}</strong>
+                    </div>
+
+                    <div>
+                        <span>Strong Wind</span>
+                        <strong>${risks.strongWind}</strong>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <section class="analysis-card severe-outlook-section">
+            <div class="analysis-card-header">
+                <div>
+                    <div class="analysis-card-title">
+                        2–6 HOUR SEVERE WEATHER OUTLOOK
+                    </div>
+
+                    <div class="analysis-card-subtitle">
+                        Live Open-Meteo forecast · Prototype risk indices
+                    </div>
+                </div>
+
+                <span class="monitoring-section-badge">
+                    LIVE API
+                </span>
+            </div>
+
+            <div class="severe-outlook-grid">
+                ${cards}
+            </div>
+
+            <div class="severe-outlook-note">
+                Risk indices combine forecast rainfall, precipitation probability,
+                humidity, cloud cover, soil moisture and wind conditions.
+                Cloudburst and flash-flood values are derived indicators, not
+                calibrated probabilities.
+            </div>
+        </section>
+    `;
+}
+function renderActionableWarning(d) {
+    const level = String(d.level || '').toUpperCase();
+    const score = Number(d.risk ?? d.modelRiskScore ?? 0);
+
+    const forecast = Array.isArray(d.severeWeatherForecast)
+        ? d.severeWeatherForecast
+        : [];
+
+    const peakForecast = forecast.reduce(
+        (peak, item) => {
+            const values = [
+                Number(item.rainfall || 0),
+                Number(item.precipitationProbability || 0),
+                Number(item.windGusts || 0)
+            ];
+
+            const currentValue = Math.max(...values);
+            const peakValue = Math.max(...peak.values);
+
+            return currentValue > peakValue
+                ? { item, values }
+                : peak;
+        },
+        { item: null, values: [0, 0, 0] }
+    );
+
+    let title = 'Routine Monitoring';
+    let message = 'Current conditions do not indicate an immediate need for additional action.';
+    let actions = [
+        'Continue monitoring live weather conditions.',
+        'Review the next 2–6 hour forecast for changes.',
+        'Keep field teams informed of significant changes.'
+    ];
+
+    if (level === 'CRITICAL') {
+        title = 'Immediate Attention Recommended';
+        message =
+            'The current AI risk assessment is CRITICAL. Authorities should review exposed locations and prepare appropriate field verification and response measures.';
+        actions = [
+            'Review high-risk locations and vulnerable infrastructure.',
+            'Consider field verification where conditions warrant.',
+            'Monitor the 2–6 hour severe-weather outlook closely.',
+            'Prepare public or operational alerts according to local protocols.'
+        ];
+    } else if (level === 'HIGH') {
+        title = 'Enhanced Monitoring Recommended';
+        message =
+            'The current AI risk assessment is HIGH. Conditions should be monitored closely for possible escalation.';
+        actions = [
+            'Review vulnerable locations and infrastructure.',
+            'Monitor the next 2–6 hours for hazard escalation.',
+            'Keep field teams ready for verification if conditions worsen.'
+        ];
+    } else if (level === 'WARNING') {
+        title = 'Warning-Level Conditions';
+        message =
+            'Forecast conditions indicate a significant hazard signal. Additional monitoring and preparedness measures are recommended.';
+        actions = [
+            'Review exposed areas.',
+            'Monitor the short-term forecast closely.',
+            'Prepare field verification if impacts begin to appear.'
+        ];
+    } else if (level === 'ALERT') {
+        title = 'Alert-Level Conditions';
+        message =
+            'Elevated hazard conditions have been detected. Continue close monitoring and prepare for possible escalation.';
+        actions = [
+            'Monitor vulnerable locations.',
+            'Review the 2–6 hour outlook.',
+            'Prepare field teams for verification if required.'
+        ];
+    } else if (level === 'WATCH') {
+        title = 'Watch-Level Conditions';
+        message =
+            'Conditions warrant continued monitoring for possible escalation.';
+        actions = [
+            'Continue monitoring live conditions.',
+            'Review the upcoming 2–6 hour outlook.',
+            'Watch for increasing rainfall or other hazard indicators.'
+        ];
+    }
+
+    const actionList = actions
+        .map(action => `<li>${action}</li>`)
+        .join('');
+
+    return `
+        <section class="analysis-card actionable-warning"
+                 aria-label="Recommended actions">
+
+            <div class="analysis-card-header">
+                <div class="analysis-card-title">
+                    Recommended Actions
+                </div>
+
+                <span class="analysis-card-badge">
+                    ${level || 'MONITOR'}
+                </span>
+            </div>
+
+            <div class="analysis-card-body">
+
+                <div class="actionable-warning-main">
+                    <div class="actionable-warning-title">
+                        ${title}
+                    </div>
+
+                    <div class="actionable-warning-score">
+                        Risk Index: <strong>${score}/100</strong>
+                    </div>
+                </div>
+
+                <p class="actionable-warning-message">
+                    ${message}
+                </p>
+
+                <div class="actionable-warning-actions">
+                    <div class="actionable-warning-subtitle">
+                        Suggested operational actions
+                    </div>
+
+                    <ul>
+                        ${actionList}
+                    </ul>
+                </div>
+
+                <div class="actionable-warning-note">
+                    Recommendations are generated from the current
+                    risk assessment and forecast signals and should
+                    be reviewed by responsible authorities before action.
+                </div>
+
+            </div>
+        </section>
+    `;
+}
     // ============ EVENT LISTENERS ============
     function setupEventListeners() {
         const select = document.getElementById('locationSelect');
